@@ -1,0 +1,2509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Music Player</title>
+    <!-- Music Metadata Browser for ID3 tags and album art -->
+    <script type="module">
+        import * as musicMetadata from 'https://cdn.jsdelivr.net/npm/music-metadata-browser@2/dist/music-metadata-browser.min.js';
+        window.parseAudioMetadata = musicMetadata.parseBlob;
+    </script>
+    <style>
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #212121;
+            --bg-tertiary: #181818;
+            --bg-elevated: #282828;
+            --text-primary: #ffffff;
+            --text-secondary: #aaaaaa;
+            --text-dim: #717171;
+            --accent: #ff0000;
+            --accent-hover: #ff3333;
+            --danger: #ff4444;
+            --border: rgba(255, 255, 255, 0.1);
+            --player-height: 72px;
+            --sidebar-width: 240px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* Container Layout */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            height: var(--header-height);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header-title {
+            flex: 1;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .icon-button {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: none;
+            color: var(--text-secondary);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 20px;
+        }
+
+        .icon-button:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .icon-button.active {
+            color: var(--accent);
+            background: rgba(30, 215, 96, 0.2);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Center Content */
+        .center-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+        }
+
+        /* Now Playing View */
+        .now-playing {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .album-art {
+            width: min(400px, 60vw);
+            height: min(400px, 60vw);
+            background: var(--bg-elevated);
+            border-radius: 8px;
+            margin-bottom: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 100px;
+            color: var(--text-dim);
+        }
+
+        .track-info {
+            margin-bottom: 30px;
+        }
+
+        .track-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .track-artist {
+            font-size: 20px;
+            color: var(--text-secondary);
+        }
+
+        /* Playlist View */
+        .playlist-view {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .playlist-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .playlist-title {
+            font-size: 24px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .playlist-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .playlist-items {
+            list-style: none;
+        }
+
+        .playlist-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 2px;
+        }
+
+        .playlist-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .playlist-item.active {
+            background: var(--bg-elevated);
+            color: var(--accent);
+        }
+
+        .playlist-item-index {
+            width: 40px;
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        .playlist-item.active .playlist-item-index {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .playlist-item-info {
+            flex: 1;
+        }
+
+        .playlist-item-title {
+            font-size: 16px;
+            margin-bottom: 2px;
+        }
+
+        .playlist-item-duration {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Right Sidebar */
+        .right-sidebar {
+            width: 320px;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+            transition: transform 0.3s;
+        }
+
+        .right-sidebar.hidden {
+            transform: translateX(100%);
+        }
+
+        .sidebar-section {
+            margin-bottom: 30px;
+        }
+
+        .sidebar-section h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+        }
+
+        /* Simple Controls */
+        .simple-control {
+            margin-bottom: 20px;
+        }
+
+        .simple-control label {
+            display: block;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            margin-bottom: 5px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--bg-tertiary);
+            transition: .3s;
+            border-radius: 26px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: var(--accent);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+
+        .range-control {
+            margin-bottom: 20px;
+        }
+
+        .range-with-value {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .range-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .range-slider::-webkit-slider-thumb:hover {
+            background: var(--accent);
+        }
+
+        .range-value {
+            min-width: 45px;
+            text-align: right;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Player Bar */
+        .player-bar {
+            height: var(--player-height);
+            background: var(--bg-elevated);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            position: relative;
+            z-index: 20;
+        }
+
+        /* Left section - Track info */
+        .player-track-info {
+            flex: 0 0 30%;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .player-album-art {
+            width: 56px;
+            height: 56px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--text-dim);
+        }
+
+        .player-track-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .player-track-title {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+
+        .player-track-artist {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Center section - Playback controls */
+        .player-controls {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .playback-buttons {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .playback-button {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .playback-button:hover {
+            transform: scale(1.1);
+        }
+
+        .playback-button.primary {
+            width: 48px;
+            height: 48px;
+            background: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .playback-button.primary:hover {
+            transform: scale(1.05);
+        }
+
+        .progress-bar {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .time-display {
+            font-size: 12px;
+            color: var(--text-secondary);
+            min-width: 40px;
+        }
+
+        .progress-slider {
+            flex: 1;
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--text-primary);
+            border-radius: 2px;
+            position: relative;
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        .progress-slider:hover .progress-fill {
+            background: var(--accent);
+        }
+
+        /* Right section - Additional controls */
+        .player-extras {
+            flex: 0 0 30%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-right: 20px;
+        }
+
+        .volume-slider {
+            width: 100px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 400px;
+            background: var(--bg-secondary);
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.5);
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            z-index: 100;
+            overflow-y: auto;
+        }
+
+        .settings-panel.open {
+            transform: translateX(0);
+        }
+
+        .settings-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .settings-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .settings-content {
+            padding: 20px;
+        }
+
+        .settings-section {
+            margin-bottom: 30px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .settings-section:last-child {
+            border-bottom: none;
+        }
+
+        .settings-section h3 {
+            font-size: 16px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        /* Status indicators */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            padding: 4px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-indicator.active {
+            background: rgba(30, 215, 96, 0.2);
+            color: var(--accent);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        /* File input styling */
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-input-button:hover {
+            background: var(--bg-elevated);
+            border-color: var(--accent);
+        }
+
+        /* Save button */
+        .save-button {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 20px;
+        }
+
+        .save-button:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .right-sidebar {
+                position: fixed;
+                right: 0;
+                top: var(--header-height);
+                bottom: var(--player-height);
+                width: 100%;
+                transform: translateX(100%);
+            }
+
+            .settings-panel {
+                width: 100%;
+            }
+
+            .player-track-info,
+            .player-extras {
+                flex: 0 0 auto;
+            }
+
+            .volume-control {
+                display: none;
+            }
+        }
+
+        /* Hidden class */
+        .hidden {
+            display: none !important;
+        }
+
+        /* View toggle */
+        .view-toggle {
+            display: flex;
+            background: var(--bg-tertiary);
+            border-radius: 24px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .view-toggle button {
+            flex: 1;
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 20px;
+            transition: all 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="header-title">Adaptive Music</h1>
+            <div class="header-buttons">
+                <button class="icon-button" id="adaptiveToggle" title="Adaptive Mode">
+                    <span>🎚️</span>
+                </button>
+                <button class="icon-button" id="settingsBtn" title="Settings">
+                    <span>⚙️</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Center Content -->
+            <div class="center-content">
+                <!-- View Toggle -->
+                <div style="padding: 20px 20px 0;">
+                    <div class="view-toggle">
+                        <button id="nowPlayingBtn" class="active">Now Playing</button>
+                        <button id="playlistBtn">Playlist</button>
+                    </div>
+                </div>
+
+                <!-- Now Playing View -->
+                <div id="nowPlayingView" class="now-playing">
+                    <div class="album-art">
+                        <span>🎵</span>
+                    </div>
+                    <div class="track-info">
+                        <h2 class="track-title">No Track Selected</h2>
+                        <p class="track-artist">Select a file to play</p>
+                    </div>
+                </div>
+
+                <!-- Playlist View -->
+                <div id="playlistView" class="playlist-view hidden">
+                    <div class="playlist-header">
+                        <h2 class="playlist-title">Playlist</h2>
+                        <div class="playlist-controls">
+                            <button class="icon-button" id="shuffleBtn" title="Shuffle">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+                                </svg>
+                            </button>
+                            <button class="icon-button" id="repeatBtn" title="Repeat">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <ul class="playlist-items" id="playlistItems">
+                        <!-- Playlist items will be added here dynamically -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <aside class="right-sidebar" id="rightSidebar">
+                <div class="sidebar-section">
+                    <h3>Quick Controls</h3>
+                    
+                    <div class="simple-control">
+                        <label>Adaptive Volume</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="adaptiveVolumeToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="status-indicator" id="adaptiveStatus">
+                            <span class="status-dot"></span>
+                            <span>Inactive</span>
+                        </div>
+                    </div>
+
+                    <div class="range-control">
+                        <label>Smart Volume</label>
+                        <div class="range-with-value">
+                            <input type="range" class="range-slider" id="snrSlider" 
+                                   min="0" max="50" value="20" step="1">
+                            <span class="range-value" id="snrValue">+20 dB</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                            Volume boost above ambient noise
+                        </div>
+                    </div>
+
+                    <div class="simple-control">
+                        <label>Environment Monitor</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="micToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="status-indicator" id="micStatus">
+                            <span class="status-dot"></span>
+                            <span>Off</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Current Status</h3>
+                    <div style="font-size: 14px; line-height: 1.8;">
+                        <div style="margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Noise Level:</span>
+                            <span id="noiseLevel" style="font-weight: 600;">-- dB</span>
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Headroom:</span>
+                            <span id="headroom" style="font-weight: 600;">-25.0 dBFS</span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary);">EQ Curve:</span>
+                            <span id="eqCurve" style="font-weight: 600;">60→80 phon</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Player Bar -->
+        <div class="player-bar">
+            <!-- Track Info -->
+            <div class="player-track-info">
+                <div class="player-album-art">
+                    <span>🎵</span>
+                </div>
+                <div class="player-track-details">
+                    <div class="player-track-title" id="playerTrackTitle">No Track</div>
+                    <div class="player-track-artist" id="playerTrackArtist">-</div>
+                </div>
+            </div>
+
+            <!-- Playback Controls -->
+            <div class="player-controls">
+                <div class="playback-buttons">
+                    <button class="playback-button" id="prevBtn" title="Previous">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+                        </svg>
+                    </button>
+                    <button class="playback-button primary" id="playBtn" title="Play/Pause">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5v14l11-7z"/>
+                        </svg>
+                    </button>
+                    <button class="playback-button" id="nextBtn" title="Next">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="progress-bar">
+                    <span class="time-display" id="currentTime">0:00</span>
+                    <div class="progress-slider" id="progressBar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span class="time-display" id="totalTime">0:00</span>
+                </div>
+            </div>
+
+            <!-- Extra Controls -->
+            <div class="player-extras">
+                <div class="volume-control">
+                    <button class="icon-button" id="muteBtn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                        </svg>
+                    </button>
+                    <input type="range" class="volume-slider" id="volumeSlider" 
+                           min="0" max="100" value="100">
+                </div>
+                <div class="file-input-wrapper">
+                    <input type="file" id="fileInput" multiple accept="audio/*">
+                    <label for="fileInput" class="icon-button" title="Add Files">
+                        <span>➕</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel" id="settingsPanel">
+            <div class="settings-header">
+                <h2 class="settings-title">Advanced Settings</h2>
+                <button class="icon-button" id="closeSettings">
+                    <span>✕</span>
+                </button>
+            </div>
+            <div class="settings-content">
+                <!-- Settings sections will be populated here -->
+                <div class="settings-section">
+                    <h3>🎛️ Loudness Compensation</h3>
+                    <div class="range-control">
+                        <label>Target Music Level</label>
+                        <div class="range-with-value">
+                            <input type="range" class="range-slider" id="targetPhon" 
+                                   min="20" max="80" value="60" step="1">
+                            <span class="range-value" id="targetPhonValue">60 phon</span>
+                        </div>
+                    </div>
+                    <div class="range-control">
+                        <label>Reference Level</label>
+                        <div class="range-with-value">
+                            <input type="range" class="range-slider" id="referencePhon" 
+                                   min="60" max="100" value="80" step="1">
+                            <span class="range-value" id="referencePhonValue">80 phon</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>🎤 Microphone Settings</h3>
+                    <div class="range-control">
+                        <label>Manual Threshold</label>
+                        <div class="range-with-value">
+                            <input type="range" class="range-slider" id="manualThreshold" 
+                                   min="20" max="80" value="45" step="1">
+                            <span class="range-value" id="thresholdValue">45 dB</span>
+                        </div>
+                    </div>
+                    <div class="range-control">
+                        <label>Microphone Sensitivity</label>
+                        <div class="range-with-value">
+                            <input type="range" class="range-slider" id="micSensitivity" 
+                                   min="0.5" max="5" value="2" step="0.1">
+                            <span class="range-value" id="micSensitivityValue">2.0x</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>🎵 Audio Enhancement</h3>
+                    <div class="simple-control">
+                        <label>Equal Loudness Compensation</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="equalLoudnessToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="simple-control">
+                        <label>Extra Bass/Treble Boost</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="extraBoostToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="range-control">
+                        <label>Quiet Enhancement</label>
+                        <div class="range-with-value">
+                            <input type="range" class="range-slider" id="quietEnhancement" 
+                                   min="0" max="100" value="100" step="10">
+                            <span class="range-value" id="quietEnhancementValue">100%</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                            Loudness compensation strength (100% = full compensation)
+                        </div>
+                    </div>
+                    <div class="range-control">
+                        <label>Bass Adaptation</label>
+                        <div class="range-with-value">
+                            <input type="range" class="range-slider" id="bassAdaptation" 
+                                   min="0" max="20" value="8" step="1">
+                            <span class="range-value" id="bassAdaptationValue">8 dB</span>
+                        </div>
+                    </div>
+                    <div class="range-control">
+                        <label>Treble Clarity</label>
+                        <div class="range-with-value">
+                            <input type="range" class="range-slider" id="trebleClarity" 
+                                   min="0" max="10" value="4" step="1">
+                            <span class="range-value" id="trebleClarityValue">4 dB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="save-button" id="saveSettings">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the adaptive player logic -->
+    <script>
+        // Use ISO data from external files if available, otherwise define locally
+        let ISO_FREQ_LOCAL, ISO_CURVES_LOCAL;
+        
+        if (typeof ISO_FREQ === 'undefined') {
+            ISO_FREQ_LOCAL = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
+                             200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600,
+                             2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
+        } else {
+            ISO_FREQ_LOCAL = ISO_FREQ;
+        }
+        
+        if (typeof ISO_CURVES === 'undefined') {
+            ISO_CURVES_LOCAL = {
+                20: [74.3,64.4,56.3,49.5,44.7,40.6,37.5,35.0,33.1,31.6,30.2,28.9,27.7,26.6,25.6,
+                     24.7,23.8,22.5,21.2,20.3,19.1,18.1,17.2,16.3,15.0,13.4,11.5,10.4,10.1,11.2,13.4],
+                30: [86.3,75.3,66.2,58.4,52.7,48.0,44.4,41.3,39.2,37.3,35.7,34.2,32.9,31.7,30.6,
+                     29.5,28.4,27.1,25.8,24.7,23.3,22.1,21.0,19.9,18.2,16.1,14.6,13.6,13.3,14.6,17.1],
+                40: [96.9,85.4,76.3,68.3,62.1,57.0,52.5,48.7,46.2,44.0,42.1,40.4,38.9,37.5,36.3,
+                     35.1,33.9,32.6,31.2,29.9,28.4,27.1,25.9,24.7,22.9,20.7,19.0,17.8,17.3,18.6,21.4],
+                50: [107.6,95.6,86.4,78.3,71.1,65.0,60.1,56.1,53.4,51.0,48.9,47.1,45.4,43.8,42.3,
+                     40.9,39.4,38.1,36.6,35.1,33.4,32.0,30.6,29.2,27.4,25.1,23.4,22.1,21.6,22.8,25.8],
+                60: [118.6,106.1,96.8,88.4,81.3,75.0,69.2,65.1,62.2,59.6,57.3,55.3,53.5,51.7,50.1,
+                     48.6,47.0,45.6,44.0,42.3,40.5,38.9,37.3,35.6,33.7,31.3,29.6,28.3,27.9,29.1,32.3],
+                70: [129.5,116.9,107.1,98.3,91.2,84.7,78.5,74.2,71.1,68.2,65.7,63.5,61.5,59.6,57.9,
+                     56.2,54.5,53.0,51.3,49.5,47.6,45.8,44.1,42.3,40.1,37.7,35.9,34.6,34.3,35.4,38.7],
+                80: [139.9,127.3,117.5,108.6,101.4,94.8,88.4,83.9,80.7,77.6,74.9,72.6,70.4,68.3,66.4,
+                     64.6,62.8,61.1,59.3,57.4,55.3,53.4,51.4,49.5,47.2,44.8,43.0,41.7,41.2,42.2,45.6],
+                90: [150.2,137.5,127.7,118.7,111.4,104.8,98.4,93.8,90.4,87.1,84.2,81.7,79.4,77.1,75.1,
+                     73.3,71.4,69.6,67.6,65.6,63.5,61.5,59.5,57.4,55.1,52.7,50.8,49.4,48.8,49.8,53.2],
+                100:[160.4,147.6,137.8,128.8,121.4,114.8,108.3,103.7,100.3,96.9,93.9,91.4,88.9,86.6,84.5,
+                     82.5,80.5,78.6,76.6,74.5,72.4,70.3,68.3,66.2,63.9,61.4,59.5,58.1,57.5,58.5,62.0]
+            };
+        } else {
+            ISO_CURVES_LOCAL = ISO_CURVES;
+        }
+
+        // Import necessary classes and functions from the original player
+        class AdaptiveQuietPlayer {
+            constructor() {
+                console.log('Initializing Adaptive Music Player v2...');
+                
+                // Core audio properties
+                this.audioContext = null;
+                this.audioElement = null;
+                this.source = null;
+                this.micSource = null;
+                this.analyzer = null;
+                this.isPlaying = false;
+                this.isListening = false;
+                
+                // Audio nodes for dual-filter A/B system
+                this.dryGain = null;
+                this.wetGainA = null;
+                this.wetGainB = null;
+                this.firFilterA = null;
+                this.firFilterB = null;
+                this.currentFilter = 'A';
+                this.nextFilter = 'B';
+                this.isCrossfading = false;
+                
+                // Volume A/B transition system
+                this.volumeGainA = null;
+                this.volumeGainB = null;
+                this.currentVolumeNode = 'A';
+                this.targetVolumeValue = 1.0;
+                this.compensationGain = null;
+                
+                // Environment monitoring
+                this.noiseLevel = 45; // Default typical room (was too low at 35)
+                this.autoGain = 0;
+                this.thirtySecondBuffer = [];
+                this.previousThirtySecondBuffer = [];
+                
+                // Loudness parameters
+                this.targetPhon = 60;
+                this.referencePhon = 80;
+                this.desiredSNR = 20;
+                this.manualThreshold = 45;
+                
+                // Track normalization
+                this.trackMetadata = null;
+                this.normalizationOffset = 0; // dB offset for current track
+                this.dynamicHeadroomReserve = 0; // Extra headroom for dynamic tracks
+                
+                // Filter parameters
+                this.numTaps = 4095;
+                this.firCoeffsA = null;
+                this.firCoeffsB = null;
+                this.crossfadeTime = 10000; // 10 seconds
+                this.updateMode = 'filter'; // Alternates between 'filter' and 'volume'
+                
+                // Playlist
+                this.playlist = [];
+                this.currentTrackIndex = -1;
+                this.isPlaylistMode = false;
+                this.shuffleMode = false;
+                this.repeatMode = 'off';
+                this.shuffleHistory = [];
+                this.shuffleQueue = [];
+                
+                // Extra features
+                this.extraBoostEnabled = false;
+                this.equalLoudnessEnabled = true;
+                this.adaptiveMode = false;
+                
+                // Adaptive parameters for filter design
+                this.bassAdaptation = 8;
+                this.trebleClarity = 4;
+                this.micSensitivity = 2.0;
+                this.quietEnhancement = 100; // Default 100% (full equal-loudness compensation)
+                
+                // Interpolated ISO data
+                this.fineGrainedISO226 = null;
+                
+                // Initialize UI
+                this.initializeUI();
+                this.setupEventListeners();
+            }
+            
+            async init() {
+                if (!this.audioContext) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('Audio context created:', this.audioContext.sampleRate, 'Hz');
+                }
+                
+                if (this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
+                }
+            }
+            
+            initializeUI() {
+                // Update UI with initial values
+                document.getElementById('snrSlider').value = this.desiredSNR;
+                document.getElementById('snrValue').textContent = '+' + this.desiredSNR + ' dB';
+                
+                document.getElementById('targetPhon').value = this.targetPhon;
+                document.getElementById('targetPhonValue').textContent = this.targetPhon + ' phon';
+                
+                document.getElementById('referencePhon').value = this.referencePhon;
+                document.getElementById('referencePhonValue').textContent = this.referencePhon + ' phon';
+                
+                document.getElementById('manualThreshold').value = this.manualThreshold;
+                document.getElementById('thresholdValue').textContent = this.manualThreshold + ' dB';
+                
+                // Initialize displays
+                const effectiveLevel = this.targetPhon + this.autoGain;
+                const headroomLUFS = -(effectiveLevel - 85);
+                // Display as dBFS (negative values for headroom)
+                document.getElementById('headroom').textContent = (-headroomLUFS).toFixed(1) + ' dBFS';
+                document.getElementById('eqCurve').textContent = 
+                    `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`;
+                
+                // Initialize Quiet Enhancement
+                document.getElementById('quietEnhancement').value = this.quietEnhancement;
+                document.getElementById('quietEnhancementValue').textContent = this.quietEnhancement + '%';
+            }
+            
+            setupEventListeners() {
+                // File input
+                document.getElementById('fileInput').addEventListener('change', async (e) => {
+                    const files = Array.from(e.target.files);
+                    if (files.length > 0) {
+                        this.playlist = files;
+                        this.isPlaylistMode = true;
+                        await this.loadTrack(0);
+                        this.updatePlaylistUI();
+                    }
+                });
+                
+                // Playback controls
+                document.getElementById('playBtn').addEventListener('click', () => this.togglePlay());
+                document.getElementById('prevBtn').addEventListener('click', () => this.playPrevious());
+                document.getElementById('nextBtn').addEventListener('click', () => this.playNext());
+                
+                // Volume control
+                const volumeSlider = document.getElementById('volumeSlider');
+                volumeSlider.addEventListener('input', (e) => {
+                    const volume = e.target.value / 100;
+                    if (this.audioElement) {
+                        // Don't directly set audio element volume
+                        // Use our volume system instead
+                        this.updateMasterVolume();
+                    }
+                });
+                
+                // Adaptive controls
+                document.getElementById('adaptiveVolumeToggle').addEventListener('change', (e) => {
+                    this.adaptiveMode = e.target.checked;
+                    if (this.adaptiveMode) {
+                        this.startAdaptiveSystem();
+                    } else {
+                        this.stopAdaptiveSystem();
+                    }
+                });
+                
+                // Mic toggle
+                document.getElementById('micToggle').addEventListener('change', async (e) => {
+                    if (e.target.checked) {
+                        await this.init();
+                        await this.startEnvironmentMonitoring();
+                    } else {
+                        this.stopEnvironmentMonitoring();
+                    }
+                });
+                
+                // SNR slider (Smart Volume)
+                document.getElementById('snrSlider').addEventListener('input', (e) => {
+                    this.desiredSNR = parseInt(e.target.value);
+                    document.getElementById('snrValue').textContent = '+' + this.desiredSNR + ' dB';
+                    
+                    // Update auto gain immediately if adaptive mode is on
+                    if (this.adaptiveMode) {
+                        const targetMusicLevel = this.noiseLevel + this.desiredSNR;
+                        this.autoGain = Math.max(0, targetMusicLevel - this.targetPhon);
+                        console.log(`SNR changed: Noise ${this.noiseLevel}dB + SNR ${this.desiredSNR}dB = ${targetMusicLevel}dB target, autoGain: ${this.autoGain}dB`);
+                        
+                        // Update displays
+                        const effectiveLevel = this.targetPhon + this.autoGain;
+                        const headroomLUFS = -(effectiveLevel - 85);
+                        // Display as dBFS (negative values for headroom)
+                document.getElementById('headroom').textContent = (-headroomLUFS).toFixed(1) + ' dBFS';
+                        document.getElementById('eqCurve').textContent = 
+                            `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`;
+                    }
+                    
+                    // Always update volume to reflect changes
+                    this.updateMasterVolume();
+                });
+                
+                // Settings sliders
+                document.getElementById('targetPhon').addEventListener('input', (e) => {
+                    this.targetPhon = parseInt(e.target.value);
+                    document.getElementById('targetPhonValue').textContent = this.targetPhon + ' phon';
+                    
+                    // Update displays
+                    const effectiveLevel = this.targetPhon + this.autoGain;
+                    const headroomLUFS = -(effectiveLevel - 85);
+                    // Display as dBFS (negative values for headroom)
+                document.getElementById('headroom').textContent = (-headroomLUFS).toFixed(1) + ' dBFS';
+                    document.getElementById('eqCurve').textContent = 
+                        `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`;
+                    
+                    if (this.adaptiveMode) {
+                        this.updateMasterVolume();
+                    }
+                });
+                
+                document.getElementById('referencePhon').addEventListener('input', (e) => {
+                    this.referencePhon = parseInt(e.target.value);
+                    document.getElementById('referencePhonValue').textContent = this.referencePhon + ' phon';
+                    
+                    // Update EQ curve display
+                    const effectiveLevel = this.targetPhon + this.autoGain;
+                    document.getElementById('eqCurve').textContent = 
+                        `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`;
+                });
+                
+                document.getElementById('manualThreshold').addEventListener('input', (e) => {
+                    this.manualThreshold = parseInt(e.target.value);
+                    document.getElementById('thresholdValue').textContent = this.manualThreshold + ' dB';
+                });
+                
+                // Additional settings listeners
+                document.getElementById('micSensitivity').addEventListener('input', (e) => {
+                    this.micSensitivity = parseFloat(e.target.value);
+                    document.getElementById('micSensitivityValue').textContent = this.micSensitivity.toFixed(1) + 'x';
+                });
+                
+                document.getElementById('equalLoudnessToggle').addEventListener('change', (e) => {
+                    this.equalLoudnessEnabled = e.target.checked;
+                    if (this.adaptiveMode) {
+                        this.updateAdaptiveFilter();
+                    }
+                });
+                
+                document.getElementById('extraBoostToggle').addEventListener('change', (e) => {
+                    this.extraBoostEnabled = e.target.checked;
+                    if (this.adaptiveMode) {
+                        this.updateAdaptiveFilter();
+                    }
+                });
+                
+                document.getElementById('bassAdaptation').addEventListener('input', (e) => {
+                    this.bassAdaptation = parseInt(e.target.value);
+                    document.getElementById('bassAdaptationValue').textContent = this.bassAdaptation + ' dB';
+                });
+                
+                document.getElementById('trebleClarity').addEventListener('input', (e) => {
+                    this.trebleClarity = parseInt(e.target.value);
+                    document.getElementById('trebleClarityValue').textContent = this.trebleClarity + ' dB';
+                });
+                
+                document.getElementById('quietEnhancement').addEventListener('input', (e) => {
+                    this.quietEnhancement = parseInt(e.target.value);
+                    document.getElementById('quietEnhancementValue').textContent = this.quietEnhancement + '%';
+                    
+                    // This requires filter update, so trigger it if adaptive mode is on
+                    if (this.adaptiveMode) {
+                        this.updateAdaptiveFilter();
+                    }
+                });
+                
+                // Playlist controls
+                document.getElementById('shuffleBtn').addEventListener('click', () => {
+                    this.shuffleMode = !this.shuffleMode;
+                    document.getElementById('shuffleBtn').classList.toggle('active');
+                    
+                    // Reset shuffle queue when toggling
+                    if (this.shuffleMode) {
+                        this.shuffleQueue = [];
+                        console.log('Shuffle mode enabled');
+                    } else {
+                        console.log('Shuffle mode disabled');
+                    }
+                });
+                
+                document.getElementById('repeatBtn').addEventListener('click', () => {
+                    const modes = ['off', 'all', 'one'];
+                    const currentIndex = modes.indexOf(this.repeatMode);
+                    this.repeatMode = modes[(currentIndex + 1) % modes.length];
+                    
+                    const btn = document.getElementById('repeatBtn');
+                    if (this.repeatMode === 'off') {
+                        btn.classList.remove('active');
+                        btn.innerHTML = `
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                            </svg>
+                        `;
+                    } else if (this.repeatMode === 'all') {
+                        btn.classList.add('active');
+                        btn.innerHTML = `
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                            </svg>
+                        `;
+                    } else {
+                        btn.classList.add('active');
+                        btn.innerHTML = `
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zM13 9.5v5l-1-1v-4h1z"/>
+                                <text x="12" y="15" font-size="10" text-anchor="middle" fill="currentColor">1</text>
+                            </svg>
+                        `;
+                    }
+                });
+                
+                // Progress bar
+                const progressBar = document.getElementById('progressBar');
+                progressBar.addEventListener('click', (e) => {
+                    if (this.audioElement && this.audioElement.duration) {
+                        const rect = progressBar.getBoundingClientRect();
+                        const percent = (e.clientX - rect.left) / rect.width;
+                        this.audioElement.currentTime = percent * this.audioElement.duration;
+                    }
+                });
+                
+                // Save settings
+                document.getElementById('saveSettings').addEventListener('click', () => {
+                    this.saveSettings();
+                });
+            }
+            
+            async loadTrack(index) {
+                if (index < 0 || index >= this.playlist.length) return;
+                
+                this.currentTrackIndex = index;
+                const file = this.playlist[index];
+                
+                try {
+                    await this.init();
+                    
+                    // Analyze track loudness if not cached
+                    if (!file.loudnessData) {
+                        console.log('Analyzing track loudness...');
+                        file.loudnessData = await this.analyzeTrackLoudness(file);
+                        this.applyTrackNormalization(file.loudnessData);
+                    }
+                    
+                    // Reuse existing audio element
+                    if (!this.audioElement) {
+                        this.audioElement = new Audio();
+                        this.audioElement.crossOrigin = 'anonymous';
+                        
+                        // Set up event listeners
+                        this.audioElement.addEventListener('ended', () => {
+                            if (this.isPlaylistMode) {
+                                this.handleTrackEnded();
+                            }
+                        });
+                        
+                        this.audioElement.addEventListener('timeupdate', () => {
+                            this.updateProgress();
+                        });
+                        
+                        this.audioElement.addEventListener('loadedmetadata', () => {
+                            this.updateDuration();
+                        });
+                    }
+                    
+                    // Update source
+                    this.audioElement.src = URL.createObjectURL(file);
+                    
+                    // Wait for metadata
+                    await new Promise((resolve, reject) => {
+                        this.audioElement.addEventListener('loadedmetadata', resolve, { once: true });
+                        this.audioElement.addEventListener('error', reject, { once: true });
+                        this.audioElement.load();
+                    });
+                    
+                    // Update UI
+                    this.updateTrackInfo(file);
+                    this.updatePlaylistUI();
+                    
+                    // Apply saved normalization if available
+                    if (file.loudnessData) {
+                        this.applyTrackNormalization(file.loudnessData);
+                    }
+                    
+                    // Create audio graph if needed
+                    if (!this.source) {
+                        this.createAudioGraph();
+                    }
+                    
+                } catch (error) {
+                    console.error('Error loading track:', error);
+                }
+            }
+            
+            updateTrackInfo(file) {
+                const trackName = file.name.replace(/\.[^/.]+$/, '');
+                
+                // Update now playing view
+                document.querySelector('.track-title').textContent = trackName;
+                document.querySelector('.track-artist').textContent = 'Local File';
+                
+                // Update player bar
+                document.getElementById('playerTrackTitle').textContent = trackName;
+                document.getElementById('playerTrackArtist').textContent = 'Local File';
+            }
+            
+            updatePlaylistUI() {
+                const container = document.getElementById('playlistItems');
+                container.innerHTML = '';
+                
+                this.playlist.forEach((file, index) => {
+                    const item = document.createElement('li');
+                    item.className = 'playlist-item';
+                    if (index === this.currentTrackIndex) {
+                        item.classList.add('active');
+                    }
+                    
+                    const trackName = file.name.replace(/\.[^/.]+$/, '');
+                    
+                    item.innerHTML = `
+                        <div class="playlist-item-index">${index + 1}</div>
+                        <div class="playlist-item-info">
+                            <div class="playlist-item-title">${trackName}</div>
+                            <div class="playlist-item-duration">-:--</div>
+                        </div>
+                    `;
+                    
+                    item.addEventListener('click', () => {
+                        this.loadTrack(index);
+                        if (this.isPlaying) {
+                            this.play();
+                        }
+                    });
+                    
+                    container.appendChild(item);
+                });
+            }
+            
+            updateProgress() {
+                if (!this.audioElement) return;
+                
+                const current = this.audioElement.currentTime;
+                const duration = this.audioElement.duration || 0;
+                
+                if (duration > 0) {
+                    const percent = (current / duration) * 100;
+                    document.getElementById('progressFill').style.width = percent + '%';
+                    document.getElementById('currentTime').textContent = this.formatTime(current);
+                }
+            }
+            
+            updateDuration() {
+                if (!this.audioElement) return;
+                
+                const duration = this.audioElement.duration || 0;
+                document.getElementById('totalTime').textContent = this.formatTime(duration);
+            }
+            
+            formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            togglePlay() {
+                if (this.isPlaying) {
+                    this.pause();
+                } else {
+                    this.play();
+                }
+            }
+            
+            async play() {
+                if (!this.audioElement) return;
+                
+                try {
+                    await this.audioElement.play();
+                    this.isPlaying = true;
+                    
+                    // Update play button icon
+                    const playBtn = document.getElementById('playBtn');
+                    playBtn.innerHTML = `
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                        </svg>
+                    `;
+                } catch (error) {
+                    console.error('Error playing:', error);
+                }
+            }
+            
+            pause() {
+                if (!this.audioElement) return;
+                
+                this.audioElement.pause();
+                this.isPlaying = false;
+                
+                // Update play button icon
+                const playBtn = document.getElementById('playBtn');
+                playBtn.innerHTML = `
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z"/>
+                    </svg>
+                `;
+            }
+            
+            async playNext() {
+                if (!this.isPlaylistMode || this.playlist.length === 0) return;
+                
+                let nextIndex;
+                
+                if (this.shuffleMode) {
+                    // Create new shuffle queue if empty
+                    if (this.shuffleQueue.length === 0) {
+                        // Create array of all indices except current
+                        this.shuffleQueue = Array.from({length: this.playlist.length}, (_, i) => i)
+                            .filter(i => i !== this.currentTrackIndex);
+                        
+                        // Shuffle the queue
+                        for (let i = this.shuffleQueue.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [this.shuffleQueue[i], this.shuffleQueue[j]] = [this.shuffleQueue[j], this.shuffleQueue[i]];
+                        }
+                    }
+                    
+                    // Get next track from shuffle queue
+                    nextIndex = this.shuffleQueue.shift();
+                    
+                    // If queue is empty and repeat all is on, regenerate queue
+                    if (nextIndex === undefined) {
+                        if (this.repeatMode === 'all') {
+                            // Regenerate shuffle queue with all tracks
+                            this.shuffleQueue = Array.from({length: this.playlist.length}, (_, i) => i);
+                            for (let i = this.shuffleQueue.length - 1; i > 0; i--) {
+                                const j = Math.floor(Math.random() * (i + 1));
+                                [this.shuffleQueue[i], this.shuffleQueue[j]] = [this.shuffleQueue[j], this.shuffleQueue[i]];
+                            }
+                            nextIndex = this.shuffleQueue.shift();
+                        } else {
+                            return; // End of playlist
+                        }
+                    }
+                } else {
+                    // Normal sequential playback
+                    nextIndex = this.currentTrackIndex + 1;
+                    if (nextIndex >= this.playlist.length) {
+                        if (this.repeatMode === 'all') {
+                            nextIndex = 0;
+                        } else {
+                            return;
+                        }
+                    }
+                }
+                
+                await this.loadTrack(nextIndex);
+                if (this.isPlaying) {
+                    this.play();
+                }
+            }
+            
+            async playPrevious() {
+                if (!this.isPlaylistMode || this.playlist.length === 0) return;
+                
+                let prevIndex = this.currentTrackIndex - 1;
+                if (prevIndex < 0) {
+                    if (this.repeatMode === 'all') {
+                        prevIndex = this.playlist.length - 1;
+                    } else {
+                        prevIndex = 0;
+                    }
+                }
+                
+                await this.loadTrack(prevIndex);
+                if (this.isPlaying) {
+                    this.play();
+                }
+            }
+            
+            handleTrackEnded() {
+                if (this.repeatMode === 'one') {
+                    this.audioElement.currentTime = 0;
+                    this.play();
+                } else {
+                    this.playNext();
+                }
+            }
+            
+            // Core DSP methods from original player
+            createAudioGraph() {
+                if (!this.audioElement) return;
+                
+                console.log('Creating audio graph for adaptive playback...');
+                
+                const needsInitialSetup = !this.wetGainA || !this.wetGainB;
+                
+                try {
+                    if (!this.source) {
+                        this.source = this.audioContext.createMediaElementSource(this.audioElement);
+                    }
+                } catch (error) {
+                    console.error('Error creating media source:', error);
+                    return;
+                }
+                
+                if (needsInitialSetup) {
+                    // Create all audio nodes
+                    this.dryGain = this.audioContext.createGain();
+                    this.wetGainA = this.audioContext.createGain();
+                    this.wetGainB = this.audioContext.createGain();
+                    this.masterGain = this.audioContext.createGain();
+                    this.compensationGain = this.audioContext.createGain();
+                    
+                    // Volume A/B nodes
+                    this.volumeGainA = this.audioContext.createGain();
+                    this.volumeGainB = this.audioContext.createGain();
+                    this.volumeGainA.gain.value = 1.0;
+                    this.volumeGainB.gain.value = 0.0;
+                    
+                    // Create FIR filters
+                    this.firFilterA = this.audioContext.createConvolver();
+                    this.firFilterA.normalize = false;
+                    this.firFilterB = this.audioContext.createConvolver();
+                    this.firFilterB.normalize = false;
+                    
+                    // Generate initial filter coefficients
+                    const initialCoeffs = this.generateFlatResponse();
+                    this.firCoeffsA = new Float32Array(initialCoeffs);
+                    this.firCoeffsB = new Float32Array(initialCoeffs);
+                    
+                    const filterBufferA = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                    filterBufferA.copyToChannel(this.firCoeffsA, 0);
+                    this.firFilterA.buffer = filterBufferA;
+                    
+                    const filterBufferB = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                    filterBufferB.copyToChannel(this.firCoeffsB, 0);
+                    this.firFilterB.buffer = filterBufferB;
+                    
+                    // Connect audio graph
+                    this.source.connect(this.dryGain);
+                    this.dryGain.connect(this.compensationGain);
+                    
+                    this.source.connect(this.firFilterA);
+                    this.firFilterA.connect(this.wetGainA);
+                    this.wetGainA.connect(this.compensationGain);
+                    
+                    this.source.connect(this.firFilterB);
+                    this.firFilterB.connect(this.wetGainB);
+                    this.wetGainB.connect(this.compensationGain);
+                    
+                    this.compensationGain.connect(this.volumeGainA);
+                    this.compensationGain.connect(this.volumeGainB);
+                    this.volumeGainA.connect(this.masterGain);
+                    this.volumeGainB.connect(this.masterGain);
+                    this.masterGain.connect(this.audioContext.destination);
+                    
+                    // Set initial gains - 100% wet to avoid phase issues
+                    this.dryGain.gain.value = 0.0;  // No dry signal
+                    this.wetGainA.gain.value = 1.0;  // 100% wet signal
+                    this.wetGainB.gain.value = 0.0;
+                    this.compensationGain.gain.value = 1.0;
+                    this.masterGain.gain.value = 1.0;
+                    
+                    // Initialize volume
+                    setTimeout(() => {
+                        this.updateMasterVolume();
+                    }, 100);
+                } else {
+                    // Reconnect for new track
+                    try {
+                        this.source.disconnect();
+                    } catch (e) {}
+                    
+                    this.source.connect(this.dryGain);
+                    this.source.connect(this.firFilterA);
+                    this.source.connect(this.firFilterB);
+                }
+            }
+            
+            generateFlatResponse() {
+                // Generate a flat frequency response (bypass filter)
+                const coeffs = new Float32Array(this.numTaps);
+                const center = Math.floor(this.numTaps / 2);
+                coeffs[center] = 1.0;
+                return coeffs;
+            }
+            
+            // ISO 226 interpolation methods
+            interpISO(isoCurves, increment) {
+                const result = {};
+                const phonLevels = Object.keys(isoCurves).map(Number).sort((a, b) => a - b);
+                
+                for (let i = 0; i < phonLevels.length - 1; i++) {
+                    const phon1 = phonLevels[i];
+                    const phon2 = phonLevels[i + 1];
+                    const curve1 = isoCurves[phon1];
+                    const curve2 = isoCurves[phon2];
+                    
+                    result[phon1] = curve1;
+                    
+                    // Interpolate between phon1 and phon2
+                    for (let phon = phon1 + increment; phon < phon2; phon += increment) {
+                        const t = (phon - phon1) / (phon2 - phon1);
+                        const interpolatedCurve = curve1.map((val1, idx) => {
+                            const val2 = curve2[idx];
+                            return val1 + t * (val2 - val1);
+                        });
+                        result[phon.toFixed(1)] = interpolatedCurve;
+                    }
+                }
+                
+                result[phonLevels[phonLevels.length - 1]] = isoCurves[phonLevels[phonLevels.length - 1]];
+                return result;
+            }
+            
+            // Find nearest phon level in interpolated data
+            findNearestPhon(targetPhon, fineGrainedISO) {
+                const phonLevels = Object.keys(fineGrainedISO).map(Number);
+                let nearest = phonLevels[0];
+                let minDiff = Math.abs(targetPhon - nearest);
+                
+                for (const phon of phonLevels) {
+                    const diff = Math.abs(targetPhon - phon);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        nearest = phon;
+                    }
+                }
+                
+                return nearest;
+            }
+            
+            // FIR filter design methods
+            designFIR(numTaps, frequencies, amplitudes, windowType = 'hamming') {
+                // Ensure odd number of taps for Type I FIR filter
+                if (numTaps % 2 === 0) {
+                    numTaps += 1;
+                }
+                
+                const h = new Float32Array(numTaps);
+                const M = numTaps - 1;
+                const center = M / 2;
+                
+                // Design using frequency sampling method
+                const N = 8192; // FFT size for frequency sampling
+                const H = new Float32Array(N);
+                
+                // Interpolate the frequency response
+                for (let k = 0; k < N/2 + 1; k++) {
+                    const freq = k * (this.audioContext.sampleRate / 2) / (N/2);
+                    H[k] = this.interpolateResponse(freq, frequencies, amplitudes);
+                }
+                
+                // Mirror for negative frequencies (conjugate symmetry)
+                for (let k = N/2 + 1; k < N; k++) {
+                    H[k] = H[N - k];
+                }
+                
+                // IFFT to get impulse response
+                const impulse = this.ifft(H);
+                
+                // Extract and window the coefficients
+                const window = this.getWindow(numTaps, windowType);
+                for (let n = 0; n < numTaps; n++) {
+                    const idx = (n - center + N) % N;
+                    h[n] = impulse[idx] * window[n];
+                }
+                
+                // Normalize for unity gain at DC
+                let sum = 0;
+                for (let i = 0; i < numTaps; i++) {
+                    sum += h[i];
+                }
+                if (sum !== 0) {
+                    for (let i = 0; i < numTaps; i++) {
+                        h[i] /= sum;
+                    }
+                }
+                
+                return h;
+            }
+            
+            interpolateResponse(freq, frequencies, amplitudes) {
+                // Linear interpolation between frequency points
+                for (let i = 0; i < frequencies.length - 1; i++) {
+                    if (freq >= frequencies[i] && freq <= frequencies[i + 1]) {
+                        const f1 = frequencies[i];
+                        const f2 = frequencies[i + 1];
+                        const a1 = amplitudes[i];
+                        const a2 = amplitudes[i + 1];
+                        
+                        const t = (freq - f1) / (f2 - f1);
+                        return a1 + t * (a2 - a1);
+                    }
+                }
+                
+                // Extrapolate if outside range
+                if (freq < frequencies[0]) {
+                    return amplitudes[0];
+                }
+                return amplitudes[amplitudes.length - 1];
+            }
+            
+            getWindow(length, windowType) {
+                const window = new Float32Array(length);
+                
+                switch (windowType) {
+                    case 'hamming':
+                        for (let n = 0; n < length; n++) {
+                            window[n] = 0.54 - 0.46 * Math.cos(2 * Math.PI * n / (length - 1));
+                        }
+                        break;
+                    case 'hann':
+                        for (let n = 0; n < length; n++) {
+                            window[n] = 0.5 * (1 - Math.cos(2 * Math.PI * n / (length - 1)));
+                        }
+                        break;
+                    case 'blackman':
+                        for (let n = 0; n < length; n++) {
+                            window[n] = 0.42 - 0.5 * Math.cos(2 * Math.PI * n / (length - 1)) 
+                                       + 0.08 * Math.cos(4 * Math.PI * n / (length - 1));
+                        }
+                        break;
+                    default: // rectangular
+                        window.fill(1.0);
+                }
+                
+                return window;
+            }
+            
+            // Simple IFFT implementation
+            ifft(X) {
+                const N = X.length;
+                const x = new Float32Array(N);
+                
+                // Use naive DFT for simplicity (would use FFT library in production)
+                for (let n = 0; n < N; n++) {
+                    let real = 0;
+                    for (let k = 0; k < N; k++) {
+                        const angle = 2 * Math.PI * k * n / N;
+                        real += X[k] * Math.cos(angle);
+                    }
+                    x[n] = real / N;
+                }
+                
+                return x;
+            }
+            
+            generateAdaptiveLoudnessFilter() {
+                if (!this.audioContext) return null;
+                
+                // Initialize interpolated ISO data if not already done
+                if (!this.fineGrainedISO226) {
+                    this.fineGrainedISO226 = this.interpISO(ISO_CURVES_LOCAL, 0.1);
+                }
+                
+                const nyquist = this.audioContext.sampleRate / 2;
+                const numFreqs = 512;
+                const frequencies = [];
+                const amplitudes = [];
+                
+                // Generate log-spaced frequencies
+                for (let i = 0; i < numFreqs; i++) {
+                    const logFreq = Math.log10(20) + (i / (numFreqs - 1)) * (Math.log10(nyquist) - Math.log10(20));
+                    frequencies.push(Math.pow(10, logFreq));
+                }
+                
+                // Calculate compensation for each frequency
+                const targetPhonData = this.fineGrainedISO226[this.findNearestPhon(this.targetPhon, this.fineGrainedISO226)];
+                const referencePhonData = this.fineGrainedISO226[this.findNearestPhon(this.referencePhon, this.fineGrainedISO226)];
+                
+                for (const freq of frequencies) {
+                    const targetSPL = this.interpolateISO(freq, ISO_FREQ_LOCAL, targetPhonData);
+                    const referenceSPL = this.interpolateISO(freq, ISO_FREQ_LOCAL, referencePhonData);
+                    
+                    let compensation = targetSPL - referenceSPL;
+                    
+                    // Apply quietEnhancement scaling (0-100% of compensation)
+                    compensation *= (this.quietEnhancement / 100);
+                    
+                    // Apply adaptive adjustments based on environment
+                    if (this.adaptiveMode && this.isListening) {
+                        // Extra bass boost in noisy environments
+                        if (freq < 200 && this.noiseLevel > this.manualThreshold) {
+                            compensation += this.bassAdaptation * ((this.noiseLevel - this.manualThreshold) / 20);
+                        }
+                        
+                        // Treble clarity enhancement
+                        if (freq > 2000 && freq < 8000) {
+                            compensation += this.trebleClarity * ((this.noiseLevel - 35) / 30);
+                        }
+                    }
+                    
+                    // Apply extra boost if enabled
+                    if (this.extraBoostEnabled) {
+                        if (freq < 100) compensation += 3; // Extra bass
+                        if (freq > 8000) compensation += 2; // Extra treble
+                    }
+                    
+                    // Convert dB to linear amplitude
+                    amplitudes.push(Math.pow(10, compensation / 20));
+                }
+                
+                // Add boundary frequencies
+                frequencies.unshift(0);
+                amplitudes.unshift(amplitudes[0]);
+                frequencies.push(nyquist);
+                amplitudes.push(amplitudes[amplitudes.length - 1]);
+                
+                // Design FIR filter
+                return this.designFIR(this.numTaps, frequencies, amplitudes);
+            }
+            
+            interpolateISO(freq, isoFreqs, isoData) {
+                // Find surrounding frequency points
+                for (let i = 0; i < isoFreqs.length - 1; i++) {
+                    if (freq >= isoFreqs[i] && freq <= isoFreqs[i + 1]) {
+                        const f1 = isoFreqs[i];
+                        const f2 = isoFreqs[i + 1];
+                        const spl1 = isoData[i];
+                        const spl2 = isoData[i + 1];
+                        
+                        // Log-scale interpolation
+                        const t = (Math.log10(freq) - Math.log10(f1)) / (Math.log10(f2) - Math.log10(f1));
+                        return spl1 + t * (spl2 - spl1);
+                    }
+                }
+                
+                // Extrapolate if outside range
+                if (freq < isoFreqs[0]) {
+                    return isoData[0];
+                }
+                return isoData[isoData.length - 1];
+            }
+            
+            updateMasterVolume() {
+                if (!this.masterGain || !this.volumeGainA || !this.volumeGainB) {
+                    return;
+                }
+                
+                const volumeSlider = document.getElementById('volumeSlider');
+                const volume = parseInt(volumeSlider.value) / 100;
+                
+                // With 85dB calibration and volume at 100%, we want targetPhon output
+                // So if targetPhon is 60dB, we need -25dB attenuation from 85dB
+                const baseAttenuation = this.targetPhon - 85;
+                
+                // Apply track normalization and auto gain
+                const totalAttenuation = baseAttenuation + this.autoGain + this.normalizationOffset;
+                
+                // Convert to linear gain
+                const calibratedGain = Math.pow(10, totalAttenuation / 20);
+                
+                // Apply user volume control
+                const finalGain = volume * calibratedGain;
+                this.targetVolumeValue = finalGain;
+                
+                console.log(`Volume calc: base ${baseAttenuation}dB + auto ${this.autoGain}dB = ${totalAttenuation}dB, gain: ${finalGain.toFixed(3)}`);
+                
+                // Use A/B transition for smooth volume change
+                const targetNode = this.currentVolumeNode === 'A' ? 'B' : 'A';
+                const targetGainNode = targetNode === 'A' ? this.volumeGainA : this.volumeGainB;
+                const currentGainNode = this.currentVolumeNode === 'A' ? this.volumeGainA : this.volumeGainB;
+                
+                const now = this.audioContext.currentTime;
+                targetGainNode.gain.setValueAtTime(finalGain, now);
+                currentGainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+                targetGainNode.gain.linearRampToValueAtTime(finalGain, now + 0.2);
+                
+                setTimeout(() => {
+                    this.currentVolumeNode = targetNode;
+                }, 200);
+                
+                // Update UI
+                const effectiveLevel = this.targetPhon + this.autoGain + this.normalizationOffset;
+                // 85 dB SPL = 0 LUFS, account for dynamic headroom reserve
+                const headroomLUFS = -(effectiveLevel - 85) - this.dynamicHeadroomReserve;
+                
+                // Display as dBFS (negative values for headroom)
+                document.getElementById('headroom').textContent = (-headroomLUFS).toFixed(1) + ' dBFS';
+                
+                // Update EQ curve display
+                document.getElementById('eqCurve').textContent = 
+                    `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`;
+            }
+            
+            async startEnvironmentMonitoring() {
+                try {
+                    console.log('Starting environment monitoring...');
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        }
+                    });
+                    
+                    this.micSource = this.audioContext.createMediaStreamSource(stream);
+                    this.analyzer = this.audioContext.createAnalyser();
+                    this.analyzer.fftSize = 2048;
+                    this.micSource.connect(this.analyzer);
+                    
+                    this.isListening = true;
+                    this.monitorNoise();
+                    
+                    // Update UI
+                    const micStatus = document.getElementById('micStatus');
+                    micStatus.classList.add('active');
+                    micStatus.innerHTML = '<span class="status-dot"></span><span>Listening</span>';
+                    
+                    // If adaptive mode is on, update volume immediately with new noise data
+                    if (this.adaptiveMode) {
+                        setTimeout(() => {
+                            const targetMusicLevel = this.noiseLevel + this.desiredSNR;
+                            this.autoGain = Math.max(0, targetMusicLevel - this.targetPhon);
+                            this.updateMasterVolume();
+                            console.log(`Mic started: Noise ${this.noiseLevel}dB + SNR ${this.desiredSNR}dB = ${targetMusicLevel}dB target, autoGain: ${this.autoGain}dB`);
+                            
+                            // Update displays
+                            const effectiveLevel = this.targetPhon + this.autoGain;
+                            const headroomLUFS = -(effectiveLevel - 85);
+                            // Display as dBFS (negative values for headroom)
+                document.getElementById('headroom').textContent = (-headroomLUFS).toFixed(1) + ' dBFS';
+                            document.getElementById('eqCurve').textContent = 
+                                `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`;
+                        }, 1000); // Wait 1 second for noise level to stabilize
+                    }
+                    
+                } catch (error) {
+                    console.error('Error accessing microphone:', error);
+                    alert('Could not access microphone: ' + error.message);
+                    
+                    // Reset UI
+                    document.getElementById('micToggle').checked = false;
+                }
+            }
+            
+            stopEnvironmentMonitoring() {
+                if (this.micSource) {
+                    this.micSource.disconnect();
+                    this.micSource = null;
+                }
+                
+                this.isListening = false;
+                
+                // Update UI
+                const micStatus = document.getElementById('micStatus');
+                micStatus.classList.remove('active');
+                micStatus.innerHTML = '<span class="status-dot"></span><span>Off</span>';
+            }
+            
+            monitorNoise() {
+                if (!this.isListening || !this.analyzer) return;
+                
+                const bufferLength = this.analyzer.fftSize;
+                const dataArray = new Float32Array(bufferLength);
+                this.analyzer.getFloatTimeDomainData(dataArray);
+                
+                // Calculate RMS
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i] * dataArray[i];
+                }
+                const rms = Math.sqrt(sum / bufferLength);
+                
+                // Apply microphone sensitivity
+                const adjustedRms = rms * this.micSensitivity;
+                
+                // Convert to dB - typical microphone levels
+                // -60 dBFS = ~30 dB SPL (very quiet room)
+                // -40 dBFS = ~50 dB SPL (normal room)
+                // -20 dBFS = ~70 dB SPL (noisy room)
+                const dBFS = 20 * Math.log10(Math.max(0.00001, adjustedRms));
+                const db = dBFS + 90; // Calibration offset to convert dBFS to dB SPL
+                
+                // Update noise level
+                this.noiseLevel = db;
+                document.getElementById('noiseLevel').textContent = db.toFixed(1) + ' dB';
+                
+                // Continue monitoring
+                requestAnimationFrame(() => this.monitorNoise());
+            }
+            
+            startAdaptiveSystem() {
+                console.log('Starting adaptive loudness system...');
+                
+                // Start periodic updates every 30 seconds
+                this.adaptiveInterval = setInterval(() => {
+                    if (this.adaptiveMode && this.isListening) {
+                        this.updateAdaptiveParameters();
+                    }
+                }, 30000);
+                
+                // Force immediate volume update when starting
+                this.updateMode = 'volume';
+                
+                // Initial update - calculate immediate auto gain based on current noise
+                if (this.isListening) {
+                    const targetMusicLevel = this.noiseLevel + this.desiredSNR;
+                    this.autoGain = Math.max(0, targetMusicLevel - this.targetPhon);
+                    this.updateMasterVolume();
+                    console.log(`Initial adaptive: Noise ${this.noiseLevel}dB + SNR ${this.desiredSNR}dB = ${targetMusicLevel}dB target, autoGain: ${this.autoGain}dB`);
+                    
+                    // Update displays
+                    const effectiveLevel = this.targetPhon + this.autoGain;
+                    const headroomLUFS = -(effectiveLevel - 85);
+                    // Display as dBFS (negative values for headroom)
+                document.getElementById('headroom').textContent = (-headroomLUFS).toFixed(1) + ' dBFS';
+                    document.getElementById('eqCurve').textContent = 
+                        `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`;
+                } else {
+                    // Even without mic, apply any existing autoGain
+                    this.updateMasterVolume();
+                }
+                
+                // Update UI
+                const status = document.getElementById('adaptiveStatus');
+                status.classList.add('active');
+                status.innerHTML = '<span class="status-dot"></span><span>Active</span>';
+            }
+            
+            stopAdaptiveSystem() {
+                console.log('Stopping adaptive system...');
+                
+                if (this.adaptiveInterval) {
+                    clearInterval(this.adaptiveInterval);
+                    this.adaptiveInterval = null;
+                }
+                
+                // Reset auto gain
+                this.autoGain = 0;
+                this.updateMasterVolume();
+                
+                // Update UI
+                const status = document.getElementById('adaptiveStatus');
+                status.classList.remove('active');
+                status.innerHTML = '<span class="status-dot"></span><span>Inactive</span>';
+            }
+            
+            updateAdaptiveParameters() {
+                // Add current noise sample to buffer
+                this.thirtySecondBuffer.push(this.noiseLevel);
+                
+                // Maintain 30 samples (30 seconds at 1Hz)
+                if (this.thirtySecondBuffer.length > 30) {
+                    this.thirtySecondBuffer.shift();
+                }
+                
+                // Calculate average of current 30 seconds
+                let currentAvg = 0;
+                if (this.thirtySecondBuffer.length > 0) {
+                    currentAvg = this.thirtySecondBuffer.reduce((a, b) => a + b, 0) / this.thirtySecondBuffer.length;
+                }
+                
+                // Calculate 60-second average if we have previous data
+                let avgNoiseLevel = currentAvg;
+                if (this.previousThirtySecondBuffer.length > 0) {
+                    const prevAvg = this.previousThirtySecondBuffer.reduce((a, b) => a + b, 0) / this.previousThirtySecondBuffer.length;
+                    avgNoiseLevel = (currentAvg + prevAvg) / 2;
+                }
+                
+                // Determine which update to perform
+                if (this.updateMode === 'filter') {
+                    // Update filter coefficients
+                    console.log('Updating adaptive filter...');
+                    this.updateAdaptiveFilter();
+                    this.updateMode = 'volume';
+                } else {
+                    // Update volume
+                    // autoGain should boost the volume when noise is high
+                    // If noise is 45dB and we want SNR of 20dB, music should be at 65dB
+                    // If our target is 60dB, we need +5dB gain
+                    const targetMusicLevel = avgNoiseLevel + this.desiredSNR;
+                    let newAutoGain = targetMusicLevel - this.targetPhon;
+                    
+                    // Only apply positive gain (boost when noisy, don't reduce in quiet)
+                    newAutoGain = Math.max(0, Math.min(30, newAutoGain));
+                    
+                    if (Math.abs(newAutoGain - this.autoGain) > 1.0) {
+                        this.autoGain = newAutoGain;
+                        this.performVolumeTransition();
+                        console.log(`Volume update: Avg Noise ${avgNoiseLevel.toFixed(1)} dB, Auto Gain ${this.autoGain.toFixed(1)} dB`);
+                    }
+                    
+                    // Copy current buffer to previous for next cycle
+                    this.previousThirtySecondBuffer = [...this.thirtySecondBuffer];
+                    this.thirtySecondBuffer = [];
+                    
+                    this.updateMode = 'filter';
+                }
+            }
+            
+            updateAdaptiveFilter() {
+                if (!this.audioContext || !this.firFilterA || !this.firFilterB) return;
+                
+                // Generate new filter coefficients
+                const newCoeffs = this.generateAdaptiveLoudnessFilter();
+                if (!newCoeffs) return;
+                
+                // Determine which filter to update
+                const targetFilter = this.currentFilter === 'A' ? 'B' : 'A';
+                const targetFilterNode = targetFilter === 'A' ? this.firFilterA : this.firFilterB;
+                const targetGainNode = targetFilter === 'A' ? this.wetGainA : this.wetGainB;
+                const currentGainNode = this.currentFilter === 'A' ? this.wetGainA : this.wetGainB;
+                
+                // Create new buffer with coefficients
+                const filterBuffer = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                filterBuffer.copyToChannel(newCoeffs, 0);
+                targetFilterNode.buffer = filterBuffer;
+                
+                // Store coefficients
+                if (targetFilter === 'A') {
+                    this.firCoeffsA = newCoeffs;
+                } else {
+                    this.firCoeffsB = newCoeffs;
+                }
+                
+                // Perform crossfade
+                this.performFilterCrossfade(currentGainNode, targetGainNode);
+                
+                // Update current filter
+                setTimeout(() => {
+                    this.currentFilter = targetFilter;
+                    this.isCrossfading = false;
+                }, this.crossfadeTime);
+            }
+            
+            performFilterCrossfade(fromGain, toGain) {
+                if (this.isCrossfading) return;
+                
+                this.isCrossfading = true;
+                const now = this.audioContext.currentTime;
+                const duration = this.crossfadeTime / 1000; // Convert to seconds
+                
+                // Crossfade
+                fromGain.gain.setValueAtTime(fromGain.gain.value, now);
+                fromGain.gain.linearRampToValueAtTime(0, now + duration);
+                
+                toGain.gain.setValueAtTime(0, now);
+                toGain.gain.linearRampToValueAtTime(0.8, now + duration);
+            }
+            
+            performVolumeTransition() {
+                this.updateMasterVolume();
+            }
+            
+            async analyzeTrackLoudness(file) {
+                try {
+                    // Decode audio file to buffer
+                    const arrayBuffer = await file.arrayBuffer();
+                    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                    
+                    // Simple RMS-based loudness estimation (simplified version)
+                    const channelData = audioBuffer.getChannelData(0);
+                    const sampleRate = audioBuffer.sampleRate;
+                    const blockSize = sampleRate * 0.4; // 400ms blocks
+                    
+                    let sumSquares = 0;
+                    let peakValue = 0;
+                    let loudnessValues = [];
+                    
+                    // Calculate block loudness values
+                    for (let i = 0; i < channelData.length; i += blockSize) {
+                        let blockSum = 0;
+                        let blockSamples = 0;
+                        
+                        for (let j = i; j < Math.min(i + blockSize, channelData.length); j++) {
+                            const sample = Math.abs(channelData[j]);
+                            blockSum += sample * sample;
+                            blockSamples++;
+                            peakValue = Math.max(peakValue, sample);
+                        }
+                        
+                        if (blockSamples > 0) {
+                            const blockRMS = Math.sqrt(blockSum / blockSamples);
+                            const blockLUFS = 20 * Math.log10(blockRMS) - 0.691; // Simplified K-weighting
+                            loudnessValues.push(blockLUFS);
+                            sumSquares += blockSum;
+                        }
+                    }
+                    
+                    // Calculate integrated loudness (simplified)
+                    const rms = Math.sqrt(sumSquares / channelData.length);
+                    const integratedLUFS = 20 * Math.log10(rms) - 0.691;
+                    
+                    // Calculate loudness range (simplified)
+                    loudnessValues.sort((a, b) => a - b);
+                    const low = loudnessValues[Math.floor(loudnessValues.length * 0.10)];
+                    const high = loudnessValues[Math.floor(loudnessValues.length * 0.95)];
+                    const loudnessRange = high - low;
+                    
+                    // True peak in dB
+                    const truePeakDB = 20 * Math.log10(peakValue);
+                    
+                    return {
+                        integratedLUFS: integratedLUFS,
+                        loudnessRange: loudnessRange,
+                        truePeak: truePeakDB,
+                        peakToLoudness: truePeakDB - integratedLUFS
+                    };
+                    
+                } catch (error) {
+                    console.error('Error analyzing track:', error);
+                    // Return default values
+                    return {
+                        integratedLUFS: -23,
+                        loudnessRange: 7,
+                        truePeak: -1,
+                        peakToLoudness: 10
+                    };
+                }
+            }
+            
+            applyTrackNormalization(loudnessData) {
+                // Target: -14 LUFS (streaming standard)
+                const targetLUFS = -14;
+                
+                // Basic normalization
+                this.normalizationOffset = targetLUFS - loudnessData.integratedLUFS;
+                
+                // Adjust for dynamic range
+                if (loudnessData.loudnessRange > 15) {
+                    // Very dynamic (classical/jazz)
+                    this.normalizationOffset -= 3;
+                    this.dynamicHeadroomReserve = 6;
+                } else if (loudnessData.loudnessRange > 10) {
+                    // Moderately dynamic
+                    this.dynamicHeadroomReserve = 3;
+                } else if (loudnessData.loudnessRange < 5) {
+                    // Heavily compressed
+                    this.normalizationOffset += 2;
+                    this.dynamicHeadroomReserve = 1;
+                } else {
+                    // Normal
+                    this.dynamicHeadroomReserve = 2;
+                }
+                
+                console.log(`Track normalization: ${this.normalizationOffset.toFixed(1)} dB, Headroom reserve: ${this.dynamicHeadroomReserve} dB`);
+                console.log(`LUFS: ${loudnessData.integratedLUFS.toFixed(1)}, LRA: ${loudnessData.loudnessRange.toFixed(1)} LU`);
+                
+                // Update volume immediately
+                this.updateMasterVolume();
+            }
+            
+            saveSettings() {
+                const settings = {
+                    targetPhon: this.targetPhon,
+                    referencePhon: this.referencePhon,
+                    desiredSNR: this.desiredSNR,
+                    manualThreshold: this.manualThreshold,
+                    adaptiveMode: this.adaptiveMode,
+                    micSensitivity: this.micSensitivity,
+                    equalLoudnessEnabled: this.equalLoudnessEnabled,
+                    extraBoostEnabled: this.extraBoostEnabled,
+                    bassAdaptation: this.bassAdaptation,
+                    trebleClarity: this.trebleClarity,
+                    quietEnhancement: this.quietEnhancement,
+                    shuffleMode: this.shuffleMode,
+                    repeatMode: this.repeatMode
+                };
+                
+                localStorage.setItem('adaptiveMusicSettings', JSON.stringify(settings));
+                
+                // Close settings panel
+                document.getElementById('settingsPanel').classList.remove('open');
+                
+                console.log('Settings saved:', settings);
+            }
+            
+            loadSettings() {
+                const saved = localStorage.getItem('adaptiveMusicSettings');
+                if (saved) {
+                    const settings = JSON.parse(saved);
+                    
+                    this.targetPhon = settings.targetPhon || 60;
+                    this.referencePhon = settings.referencePhon || 80;
+                    this.desiredSNR = settings.desiredSNR || 20;
+                    this.manualThreshold = settings.manualThreshold || 45;
+                    this.adaptiveMode = settings.adaptiveMode || false;
+                    this.micSensitivity = settings.micSensitivity || 2.0;
+                    this.equalLoudnessEnabled = settings.equalLoudnessEnabled !== undefined ? settings.equalLoudnessEnabled : true;
+                    this.extraBoostEnabled = settings.extraBoostEnabled || false;
+                    this.bassAdaptation = settings.bassAdaptation || 8;
+                    this.trebleClarity = settings.trebleClarity || 4;
+                    this.quietEnhancement = settings.quietEnhancement !== undefined ? settings.quietEnhancement : 100;
+                    this.shuffleMode = settings.shuffleMode || false;
+                    this.repeatMode = settings.repeatMode || 'off';
+                    
+                    // Update UI
+                    this.initializeUI();
+                    
+                    // Update additional UI elements
+                    document.getElementById('micSensitivity').value = this.micSensitivity;
+                    document.getElementById('micSensitivityValue').textContent = this.micSensitivity.toFixed(1) + 'x';
+                    
+                    document.getElementById('equalLoudnessToggle').checked = this.equalLoudnessEnabled;
+                    document.getElementById('extraBoostToggle').checked = this.extraBoostEnabled;
+                    
+                    document.getElementById('bassAdaptation').value = this.bassAdaptation;
+                    document.getElementById('bassAdaptationValue').textContent = this.bassAdaptation + ' dB';
+                    
+                    document.getElementById('trebleClarity').value = this.trebleClarity;
+                    document.getElementById('trebleClarityValue').textContent = this.trebleClarity + ' dB';
+                    
+                    if (this.adaptiveMode) {
+                        document.getElementById('adaptiveVolumeToggle').checked = true;
+                        const status = document.getElementById('adaptiveStatus');
+                        status.classList.add('active');
+                        status.innerHTML = '<span class="status-dot"></span><span>Active</span>';
+                    }
+                    
+                    console.log('Settings loaded:', settings);
+                }
+            }
+        }
+        
+        // Initialize player when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create player instance
+            const player = new AdaptiveQuietPlayer();
+            
+            // Load saved settings
+            player.loadSettings();
+            
+            // Basic UI interactions
+            const nowPlayingBtn = document.getElementById('nowPlayingBtn');
+            const playlistBtn = document.getElementById('playlistBtn');
+            const nowPlayingView = document.getElementById('nowPlayingView');
+            const playlistView = document.getElementById('playlistView');
+            
+            // Set initial button states
+            document.getElementById('shuffleBtn').classList.toggle('active', player.shuffleMode);
+            if (player.repeatMode !== 'off') {
+                const repeatBtn = document.getElementById('repeatBtn');
+                repeatBtn.classList.add('active');
+                if (player.repeatMode === 'one') {
+                    repeatBtn.innerHTML = `
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zM13 9.5v5l-1-1v-4h1z"/>
+                            <text x="12" y="15" font-size="10" text-anchor="middle" fill="currentColor">1</text>
+                        </svg>
+                    `;
+                }
+            }
+            
+            nowPlayingBtn.addEventListener('click', () => {
+                nowPlayingBtn.classList.add('active');
+                playlistBtn.classList.remove('active');
+                nowPlayingView.classList.remove('hidden');
+                playlistView.classList.add('hidden');
+            });
+            
+            playlistBtn.addEventListener('click', () => {
+                playlistBtn.classList.add('active');
+                nowPlayingBtn.classList.remove('active');
+                playlistView.classList.remove('hidden');
+                nowPlayingView.classList.add('hidden');
+            });
+            
+            // Settings panel
+            const settingsBtn = document.getElementById('settingsBtn');
+            const settingsPanel = document.getElementById('settingsPanel');
+            const closeSettings = document.getElementById('closeSettings');
+            
+            settingsBtn.addEventListener('click', () => {
+                settingsPanel.classList.add('open');
+            });
+            
+            closeSettings.addEventListener('click', () => {
+                settingsPanel.classList.remove('open');
+            });
+            
+            // Adaptive toggle
+            const adaptiveToggle = document.getElementById('adaptiveToggle');
+            const adaptiveVolumeToggle = document.getElementById('adaptiveVolumeToggle');
+            
+            adaptiveToggle.addEventListener('click', () => {
+                adaptiveToggle.classList.toggle('active');
+                // Toggle the adaptive volume checkbox too
+                adaptiveVolumeToggle.checked = !adaptiveVolumeToggle.checked;
+                // Trigger the change event
+                adaptiveVolumeToggle.dispatchEvent(new Event('change'));
+            });
+            
+        });
+    </script>
+</body>
+</html>

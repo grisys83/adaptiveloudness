@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dual FIR Filter Crossfade Demo</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-color: #00D4D4;
+            --accent-hover: #00E8E8;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --filter-a: #FF6B6B;
+            --filter-b: #4ECDC4;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--accent-color);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .card h2 {
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .filter-a h2 {
+            color: var(--filter-a);
+        }
+
+        .filter-b h2 {
+            color: var(--filter-b);
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 5px;
+            -webkit-appearance: none;
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .filter-a input[type="range"]::-webkit-slider-thumb {
+            background: var(--filter-a);
+        }
+
+        .filter-b input[type="range"]::-webkit-slider-thumb {
+            background: var(--filter-b);
+        }
+
+        .value-display {
+            text-align: right;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .filter-a .value-display {
+            color: var(--filter-a);
+        }
+
+        .filter-b .value-display {
+            color: var(--filter-b);
+        }
+
+        .crossfade-section {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .crossfade-viz {
+            height: 60px;
+            background: linear-gradient(to right, var(--filter-a), var(--filter-b));
+            border-radius: 30px;
+            position: relative;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .crossfade-indicator {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: left 0.1s ease-out;
+        }
+
+        .crossfade-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .crossfade-value {
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 20px 0;
+            color: var(--accent-color);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 20px;
+            background: var(--bg-tertiary);
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .file-input:hover {
+            border-color: var(--accent-color);
+            background: var(--bg-secondary);
+        }
+
+        .visualization {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .status {
+            background: var(--bg-tertiary);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85em;
+            line-height: 1.6;
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .preset-btn {
+            padding: 8px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+
+        .preset-btn:hover {
+            background: var(--accent-color);
+            color: var(--bg-primary);
+        }
+
+        #frequencyCanvas {
+            width: 100%;
+            height: 250px;
+            margin-top: 15px;
+        }
+
+        .gain-curve-container {
+            height: 200px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-top: 15px;
+            padding: 10px;
+        }
+
+        #gainCanvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .info-box {
+            background: var(--bg-tertiary);
+            border-left: 4px solid var(--accent-color);
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .keyboard-info {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+        }
+
+        .key {
+            background: var(--bg-primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: bold;
+            border: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dual FIR Filter Crossfade</h1>
+        <p class="subtitle">Crossfade between two different loudness compensation filters</p>
+        
+        <input type="file" id="audioFile" accept="audio/*" class="file-input" placeholder="Click to select audio file">
+        
+        <div class="main-grid">
+            <!-- Filter A Settings -->
+            <div class="card filter-a">
+                <h2>🔴 Filter A Settings</h2>
+                
+                <div class="preset-grid">
+                    <button class="preset-btn" data-filter="a" data-target="30" data-ref="50">Very Quiet</button>
+                    <button class="preset-btn" data-filter="a" data-target="40" data-ref="60">Quiet</button>
+                    <button class="preset-btn" data-filter="a" data-target="50" data-ref="70">Normal</button>
+                    <button class="preset-btn" data-filter="a" data-target="60" data-ref="80">Loud</button>
+                </div>
+                
+                <div class="control-group">
+                    <label>Target Phon</label>
+                    <input type="range" id="targetA" min="20" max="80" value="40" step="5">
+                    <div class="value-display" id="targetAValue">40 phon</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Reference Phon</label>
+                    <input type="range" id="referenceA" min="30" max="100" value="60" step="5">
+                    <div class="value-display" id="referenceAValue">60 phon</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Perceptual Compensation</label>
+                    <input type="range" id="compensationA" min="0" max="100" value="40" step="10">
+                    <div class="value-display" id="compensationAValue">40%</div>
+                </div>
+            </div>
+            
+            <!-- Filter B Settings -->
+            <div class="card filter-b">
+                <h2>🔵 Filter B Settings</h2>
+                
+                <div class="preset-grid">
+                    <button class="preset-btn" data-filter="b" data-target="60" data-ref="80">Enhanced</button>
+                    <button class="preset-btn" data-filter="b" data-target="70" data-ref="85">Bright</button>
+                    <button class="preset-btn" data-filter="b" data-target="40" data-ref="80">Extreme</button>
+                    <button class="preset-btn" data-filter="b" data-target="50" data-ref="90">Maximum</button>
+                </div>
+                
+                <div class="control-group">
+                    <label>Target Phon</label>
+                    <input type="range" id="targetB" min="20" max="80" value="60" step="5">
+                    <div class="value-display" id="targetBValue">60 phon</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Reference Phon</label>
+                    <input type="range" id="referenceB" min="30" max="100" value="80" step="5">
+                    <div class="value-display" id="referenceBValue">80 phon</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Perceptual Compensation</label>
+                    <input type="range" id="compensationB" min="0" max="100" value="0" step="10">
+                    <div class="value-display" id="compensationBValue">0%</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Crossfade Control -->
+        <div class="crossfade-section">
+            <h2>Crossfade Control</h2>
+            <div class="crossfade-value" id="crossfadeDisplay">Filter A: 100% | Filter B: 0%</div>
+            
+            <div class="crossfade-viz">
+                <div class="crossfade-indicator" style="left: 0%"></div>
+            </div>
+            
+            <div class="crossfade-labels">
+                <span style="color: var(--filter-a)">🔴 Filter A</span>
+                <span id="currentMix">Mix</span>
+                <span style="color: var(--filter-b)">Filter B 🔵</span>
+            </div>
+            
+            <input type="range" id="crossfade" min="0" max="100" value="0" style="margin-top: 20px;">
+            
+            <div class="control-group" style="margin-top: 20px;">
+                <label>Max Gain Reduction at 50% Mix</label>
+                <input type="range" id="maxReduction" min="-6" max="0" value="-3" step="0.1">
+                <div class="value-display" id="reductionValue" style="color: var(--accent-color)">-3.0 dB</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+                <button class="btn-primary" id="playBtn">▶️ Play</button>
+                <button class="btn-secondary" id="stopBtn">⏹ Stop</button>
+            </div>
+        </div>
+        
+        <!-- Visualization -->
+        <div class="visualization">
+            <h2>Filter Response Comparison</h2>
+            <canvas id="frequencyCanvas"></canvas>
+            
+            <h3 style="margin-top: 20px;">Gain Compensation Curve</h3>
+            <div class="gain-curve-container">
+                <canvas id="gainCanvas"></canvas>
+            </div>
+            
+            <div class="status" id="status">
+                <strong>Status:</strong> Ready<br>
+                <strong>Sample Rate:</strong> --<br>
+                <strong>Filter A:</strong> Not created<br>
+                <strong>Filter B:</strong> Not created<br>
+                <strong>Current Gain:</strong> 0.0 dB
+            </div>
+            
+            <div class="info-box">
+                <h3>Keyboard Shortcuts</h3>
+                <div class="keyboard-info">
+                    <span class="key">1-9</span><span>Set crossfade position</span>
+                    <span class="key">0</span><span>100% Filter B</span>
+                    <span class="key">A</span><span>100% Filter A</span>
+                    <span class="key">B</span><span>100% Filter B</span>
+                    <span class="key">M</span><span>50% Mix</span>
+                    <span class="key">Space</span><span>Play/Pause</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple ISO 226 approximation for demo
+        const ISO_FREQ = [20, 31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+        
+        // Simplified loudness curves
+        function getLoudnessCurve(phon) {
+            // Very simplified approximation
+            const base = {
+                20: 50 + (80 - phon) * 0.8,
+                31.5: 40 + (80 - phon) * 0.7,
+                63: 30 + (80 - phon) * 0.6,
+                125: 20 + (80 - phon) * 0.4,
+                250: 10 + (80 - phon) * 0.2,
+                500: 5 + (80 - phon) * 0.1,
+                1000: 0,
+                2000: -2 + (80 - phon) * 0.05,
+                4000: -4 + (80 - phon) * 0.1,
+                8000: -6 + (80 - phon) * 0.15,
+                16000: -8 + (80 - phon) * 0.2
+            };
+            
+            return Object.values(base);
+        }
+        
+        function designLoudnessFilter(targetPhon, referencePhon, compensation, numTaps, sampleRate) {
+            const targetCurve = getLoudnessCurve(targetPhon);
+            const referenceCurve = getLoudnessCurve(referencePhon);
+            
+            // Calculate gain difference
+            const gainDb = [];
+            for (let i = 0; i < targetCurve.length; i++) {
+                const diff = referenceCurve[i] - targetCurve[i];
+                gainDb.push(diff * compensation);
+            }
+            
+            // Normalize to 1kHz
+            const idx1k = ISO_FREQ.indexOf(1000);
+            const ref1k = gainDb[idx1k];
+            for (let i = 0; i < gainDb.length; i++) {
+                gainDb[i] -= ref1k;
+            }
+            
+            // Create impulse response
+            const impulse = new Float32Array(numTaps);
+            const center = Math.floor(numTaps / 2);
+            
+            // Simple sinc-based filter design
+            for (let i = 0; i < numTaps; i++) {
+                if (i === center) {
+                    impulse[i] = 1.0;
+                } else {
+                    const t = (i - center) / sampleRate;
+                    let sample = 0;
+                    
+                    // Sum contributions from each frequency band
+                    for (let f = 0; f < ISO_FREQ.length - 1; f++) {
+                        const freq = (ISO_FREQ[f] + ISO_FREQ[f + 1]) / 2;
+                        const gain = Math.pow(10, gainDb[f] / 20);
+                        const x = 2 * Math.PI * freq * t;
+                        sample += gain * Math.sin(x) / x;
+                    }
+                    
+                    impulse[i] = sample / ISO_FREQ.length;
+                }
+                
+                // Apply window
+                const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (numTaps - 1));
+                impulse[i] *= window;
+            }
+            
+            // Normalize
+            let sum = 0;
+            for (let i = 0; i < numTaps; i++) {
+                sum += impulse[i];
+            }
+            for (let i = 0; i < numTaps; i++) {
+                impulse[i] /= sum;
+            }
+            
+            return { impulse, gainDb };
+        }
+
+        class DualFilterCrossfade {
+            constructor() {
+                this.audioContext = null;
+                this.source = null;
+                this.audioBuffer = null;
+                this.isPlaying = false;
+                
+                // Filter parameters
+                this.filterA = {
+                    target: 40,
+                    reference: 60,
+                    compensation: 0.4,
+                    buffer: null,
+                    gainCurve: null
+                };
+                
+                this.filterB = {
+                    target: 60,
+                    reference: 80,
+                    compensation: 0.0,
+                    buffer: null,
+                    gainCurve: null
+                };
+                
+                this.crossfade = 0;
+                this.maxReduction = -3;
+                
+                // Audio nodes
+                this.convolverA = null;
+                this.convolverB = null;
+                this.gainA = null;
+                this.gainB = null;
+                this.compensationGain = null;
+                
+                this.setupUI();
+                this.updateVisualization();
+            }
+            
+            async init() {
+                if (!this.audioContext) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('Audio context initialized:', this.audioContext.sampleRate, 'Hz');
+                }
+            }
+            
+            async loadAudio(file) {
+                await this.init();
+                
+                const arrayBuffer = await file.arrayBuffer();
+                this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                
+                document.getElementById('status').innerHTML = 
+                    `<strong>Status:</strong> File loaded<br>` +
+                    `<strong>Sample Rate:</strong> ${this.audioContext.sampleRate} Hz<br>` +
+                    `<strong>Filter A:</strong> Creating...<br>` +
+                    `<strong>Filter B:</strong> Creating...<br>` +
+                    `<strong>Current Gain:</strong> 0.0 dB`;
+                
+                // Create both filters
+                await this.createFilters();
+            }
+            
+            async createFilters() {
+                const numTaps = 257;
+                const sampleRate = this.audioContext.sampleRate;
+                
+                // Design Filter A
+                const resultA = designLoudnessFilter(
+                    this.filterA.target,
+                    this.filterA.reference,
+                    this.filterA.compensation,
+                    numTaps,
+                    sampleRate
+                );
+                
+                this.filterA.buffer = this.audioContext.createBuffer(1, numTaps, sampleRate);
+                this.filterA.buffer.copyToChannel(resultA.impulse, 0);
+                this.filterA.gainCurve = resultA.gainDb;
+                
+                // Design Filter B
+                const resultB = designLoudnessFilter(
+                    this.filterB.target,
+                    this.filterB.reference,
+                    this.filterB.compensation,
+                    numTaps,
+                    sampleRate
+                );
+                
+                this.filterB.buffer = this.audioContext.createBuffer(1, numTaps, sampleRate);
+                this.filterB.buffer.copyToChannel(resultB.impulse, 0);
+                this.filterB.gainCurve = resultB.gainDb;
+                
+                // Update status
+                document.getElementById('status').innerHTML = 
+                    `<strong>Status:</strong> Ready<br>` +
+                    `<strong>Sample Rate:</strong> ${sampleRate} Hz<br>` +
+                    `<strong>Filter A:</strong> ${this.filterA.target}→${this.filterA.reference} phon (${this.filterA.compensation*100}%)<br>` +
+                    `<strong>Filter B:</strong> ${this.filterB.target}→${this.filterB.reference} phon (${this.filterB.compensation*100}%)<br>` +
+                    `<strong>Current Gain:</strong> 0.0 dB`;
+                
+                this.updateVisualization();
+            }
+            
+            createAudioGraph() {
+                if (this.source) {
+                    this.source.stop();
+                    this.source.disconnect();
+                }
+                
+                // Create source
+                this.source = this.audioContext.createBufferSource();
+                this.source.buffer = this.audioBuffer;
+                this.source.loop = true;
+                
+                // Create convolvers
+                this.convolverA = this.audioContext.createConvolver();
+                this.convolverA.buffer = this.filterA.buffer;
+                
+                this.convolverB = this.audioContext.createConvolver();
+                this.convolverB.buffer = this.filterB.buffer;
+                
+                // Create gain nodes
+                this.gainA = this.audioContext.createGain();
+                this.gainB = this.audioContext.createGain();
+                this.compensationGain = this.audioContext.createGain();
+                
+                // Connect graph
+                // Path A: source -> convolverA -> gainA -> compensationGain -> destination
+                this.source.connect(this.convolverA);
+                this.convolverA.connect(this.gainA);
+                this.gainA.connect(this.compensationGain);
+                
+                // Path B: source -> convolverB -> gainB -> compensationGain -> destination
+                this.source.connect(this.convolverB);
+                this.convolverB.connect(this.gainB);
+                this.gainB.connect(this.compensationGain);
+                
+                // Output
+                this.compensationGain.connect(this.audioContext.destination);
+                
+                // Set initial crossfade
+                this.updateCrossfade();
+            }
+            
+            updateCrossfade() {
+                const value = this.crossfade / 100;
+                
+                // Equal-power crossfade
+                const angle = value * Math.PI / 2;
+                const levelA = Math.cos(angle);
+                const levelB = Math.sin(angle);
+                
+                if (this.gainA && this.gainB) {
+                    const now = this.audioContext.currentTime;
+                    this.gainA.gain.setValueAtTime(levelA, now);
+                    this.gainB.gain.setValueAtTime(levelB, now);
+                }
+                
+                // Calculate gain compensation
+                const compensation = this.calculateCompensation(value);
+                if (this.compensationGain) {
+                    const now = this.audioContext.currentTime;
+                    this.compensationGain.gain.setValueAtTime(compensation, now);
+                }
+                
+                // Update displays
+                const percentA = Math.round((1 - value) * 100);
+                const percentB = Math.round(value * 100);
+                document.getElementById('crossfadeDisplay').textContent = 
+                    `Filter A: ${percentA}% | Filter B: ${percentB}%`;
+                
+                const gainDb = 20 * Math.log10(compensation);
+                document.getElementById('status').innerHTML = 
+                    document.getElementById('status').innerHTML.replace(
+                        /Current Gain:.*$/,
+                        `Current Gain:</strong> ${gainDb.toFixed(1)} dB`
+                    );
+                
+                // Update indicator position
+                document.querySelector('.crossfade-indicator').style.left = `${this.crossfade}%`;
+                
+                this.updateVisualization();
+            }
+            
+            calculateCompensation(crossfade) {
+                const reduction = this.maxReduction * 4 * crossfade * (1 - crossfade);
+                return Math.pow(10, reduction / 20);
+            }
+            
+            play() {
+                if (!this.audioBuffer || !this.filterA.buffer || !this.filterB.buffer) {
+                    alert('Please load an audio file first');
+                    return;
+                }
+                
+                if (this.isPlaying) {
+                    this.audioContext.suspend();
+                    this.isPlaying = false;
+                    document.getElementById('playBtn').textContent = '▶️ Play';
+                } else {
+                    if (!this.source) {
+                        this.createAudioGraph();
+                        this.source.start(0);
+                    } else {
+                        this.audioContext.resume();
+                    }
+                    this.isPlaying = true;
+                    document.getElementById('playBtn').textContent = '⏸ Pause';
+                }
+            }
+            
+            stop() {
+                if (this.source) {
+                    this.source.stop();
+                    this.source.disconnect();
+                    this.source = null;
+                }
+                this.isPlaying = false;
+                document.getElementById('playBtn').textContent = '▶️ Play';
+            }
+            
+            updateVisualization() {
+                this.drawFrequencyResponse();
+                this.drawGainCurve();
+            }
+            
+            drawFrequencyResponse() {
+                const canvas = document.getElementById('frequencyCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (!this.filterA.gainCurve || !this.filterB.gainCurve) return;
+                
+                // Draw grid
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 1;
+                
+                // Horizontal lines
+                for (let i = -20; i <= 20; i += 10) {
+                    const y = canvas.height / 2 - (i / 40) * canvas.height;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+                
+                // Draw filter responses
+                const drawCurve = (gainCurve, color, alpha) => {
+                    ctx.strokeStyle = color;
+                    ctx.globalAlpha = alpha;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    
+                    for (let i = 0; i < ISO_FREQ.length; i++) {
+                        const x = (Math.log10(ISO_FREQ[i] / 20) / Math.log10(16000 / 20)) * canvas.width;
+                        const y = canvas.height / 2 - (gainCurve[i] / 40) * canvas.height;
+                        
+                        if (i === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                };
+                
+                // Draw both curves with appropriate opacity
+                const value = this.crossfade / 100;
+                drawCurve(this.filterA.gainCurve, '#FF6B6B', 1 - value * 0.5);
+                drawCurve(this.filterB.gainCurve, '#4ECDC4', 0.5 + value * 0.5);
+                
+                // Labels
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.font = '11px sans-serif';
+                ctx.fillText('20Hz', 5, canvas.height - 5);
+                ctx.fillText('1kHz', canvas.width / 2 - 15, canvas.height - 5);
+                ctx.fillText('16kHz', canvas.width - 35, canvas.height - 5);
+                
+                // Y-axis labels
+                ctx.fillText('+20dB', 5, 15);
+                ctx.fillText('0dB', 5, canvas.height / 2);
+                ctx.fillText('-20dB', 5, canvas.height - 15);
+            }
+            
+            drawGainCurve() {
+                const canvas = document.getElementById('gainCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw gain compensation curve
+                ctx.strokeStyle = '#00D4D4';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                
+                for (let i = 0; i <= 100; i++) {
+                    const x = (i / 100) * canvas.width;
+                    const crossfade = i / 100;
+                    const gain = this.calculateCompensation(crossfade);
+                    const gainDb = 20 * Math.log10(gain);
+                    const y = canvas.height - ((gainDb - this.maxReduction) / -this.maxReduction) * canvas.height;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+                
+                // Current position
+                const currentX = (this.crossfade / 100) * canvas.width;
+                const currentGain = this.calculateCompensation(this.crossfade / 100);
+                const currentGainDb = 20 * Math.log10(currentGain);
+                const currentY = canvas.height - ((currentGainDb - this.maxReduction) / -this.maxReduction) * canvas.height;
+                
+                ctx.fillStyle = '#00D4D4';
+                ctx.beginPath();
+                ctx.arc(currentX, currentY, 6, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
+            async updateFilter(filter) {
+                if (!this.audioBuffer) return;
+                
+                const wasPlaying = this.isPlaying;
+                if (wasPlaying) {
+                    this.stop();
+                }
+                
+                await this.createFilters();
+                
+                if (wasPlaying) {
+                    this.play();
+                }
+            }
+            
+            setupUI() {
+                // File input
+                document.getElementById('audioFile').addEventListener('change', async (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        await this.loadAudio(file);
+                    }
+                });
+                
+                // Filter A controls
+                document.getElementById('targetA').addEventListener('input', (e) => {
+                    this.filterA.target = parseInt(e.target.value);
+                    document.getElementById('targetAValue').textContent = `${this.filterA.target} phon`;
+                });
+                
+                document.getElementById('referenceA').addEventListener('input', (e) => {
+                    this.filterA.reference = parseInt(e.target.value);
+                    document.getElementById('referenceAValue').textContent = `${this.filterA.reference} phon`;
+                });
+                
+                document.getElementById('compensationA').addEventListener('input', (e) => {
+                    this.filterA.compensation = parseInt(e.target.value) / 100;
+                    document.getElementById('compensationAValue').textContent = `${e.target.value}%`;
+                });
+                
+                // Filter B controls
+                document.getElementById('targetB').addEventListener('input', (e) => {
+                    this.filterB.target = parseInt(e.target.value);
+                    document.getElementById('targetBValue').textContent = `${this.filterB.target} phon`;
+                });
+                
+                document.getElementById('referenceB').addEventListener('input', (e) => {
+                    this.filterB.reference = parseInt(e.target.value);
+                    document.getElementById('referenceBValue').textContent = `${this.filterB.reference} phon`;
+                });
+                
+                document.getElementById('compensationB').addEventListener('input', (e) => {
+                    this.filterB.compensation = parseInt(e.target.value) / 100;
+                    document.getElementById('compensationBValue').textContent = `${e.target.value}%`;
+                });
+                
+                // Update filter buttons
+                document.querySelectorAll('input[type="range"]').forEach(input => {
+                    if (input.id !== 'crossfade' && input.id !== 'maxReduction') {
+                        input.addEventListener('change', () => this.updateFilter());
+                    }
+                });
+                
+                // Crossfade
+                document.getElementById('crossfade').addEventListener('input', (e) => {
+                    this.crossfade = parseFloat(e.target.value);
+                    this.updateCrossfade();
+                });
+                
+                // Max reduction
+                document.getElementById('maxReduction').addEventListener('input', (e) => {
+                    this.maxReduction = parseFloat(e.target.value);
+                    document.getElementById('reductionValue').textContent = `${this.maxReduction.toFixed(1)} dB`;
+                    this.updateCrossfade();
+                });
+                
+                // Preset buttons
+                document.querySelectorAll('.preset-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const filter = e.target.dataset.filter;
+                        const target = parseInt(e.target.dataset.target);
+                        const ref = parseInt(e.target.dataset.ref);
+                        
+                        if (filter === 'a') {
+                            document.getElementById('targetA').value = target;
+                            document.getElementById('referenceA').value = ref;
+                            document.getElementById('targetAValue').textContent = `${target} phon`;
+                            document.getElementById('referenceAValue').textContent = `${ref} phon`;
+                            this.filterA.target = target;
+                            this.filterA.reference = ref;
+                        } else {
+                            document.getElementById('targetB').value = target;
+                            document.getElementById('referenceB').value = ref;
+                            document.getElementById('targetBValue').textContent = `${target} phon`;
+                            document.getElementById('referenceBValue').textContent = `${ref} phon`;
+                            this.filterB.target = target;
+                            this.filterB.reference = ref;
+                        }
+                        
+                        this.updateFilter();
+                    });
+                });
+                
+                // Control buttons
+                document.getElementById('playBtn').addEventListener('click', () => this.play());
+                document.getElementById('stopBtn').addEventListener('click', () => this.stop());
+                
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.key >= '0' && e.key <= '9') {
+                        const value = e.key === '0' ? 100 : (parseInt(e.key) - 1) * 11.11;
+                        document.getElementById('crossfade').value = value;
+                        document.getElementById('crossfade').dispatchEvent(new Event('input'));
+                    } else if (e.key === ' ') {
+                        e.preventDefault();
+                        this.play();
+                    } else if (e.key.toLowerCase() === 'a') {
+                        document.getElementById('crossfade').value = 0;
+                        document.getElementById('crossfade').dispatchEvent(new Event('input'));
+                    } else if (e.key.toLowerCase() === 'b') {
+                        document.getElementById('crossfade').value = 100;
+                        document.getElementById('crossfade').dispatchEvent(new Event('input'));
+                    } else if (e.key.toLowerCase() === 'm') {
+                        document.getElementById('crossfade').value = 50;
+                        document.getElementById('crossfade').dispatchEvent(new Event('input'));
+                    }
+                });
+            }
+        }
+        
+        // Initialize
+        const demo = new DualFilterCrossfade();
+    </script>
+</body>
+</html>

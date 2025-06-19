@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dual Chain Music Player with Adaptive Loudness</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-color: #00D4D4;
+            --accent-hover: #00E8E8;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: var(--accent-color);
+        }
+
+        /* File Selection */
+        .file-section {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-button {
+            background: var(--accent-color);
+            color: var(--bg-primary);
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .file-input-button:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Player Controls */
+        .player-section {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .now-playing {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .now-playing h3 {
+            color: var(--text-secondary);
+            font-weight: normal;
+            font-size: 14px;
+        }
+
+        .now-playing h2 {
+            margin-top: 5px;
+            font-size: 24px;
+        }
+
+        .transport-controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .transport-button {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .transport-button:hover {
+            background: var(--accent-color);
+            transform: scale(1.1);
+        }
+
+        .transport-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .transport-button.play-pause {
+            width: 80px;
+            height: 80px;
+            font-size: 24px;
+        }
+
+        /* Progress Bar */
+        .progress-section {
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-color);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        .time-display {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* DSP Controls */
+        .dsp-section {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .dsp-chains {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .dsp-chain {
+            background: var(--bg-tertiary);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .dsp-chain h3 {
+            margin-bottom: 15px;
+            color: var(--accent-color);
+        }
+
+        .dsp-control {
+            margin-bottom: 15px;
+        }
+
+        .dsp-control label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .dsp-control input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .dsp-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .value-display {
+            display: inline-block;
+            min-width: 50px;
+            text-align: right;
+            color: var(--accent-color);
+            font-family: monospace;
+        }
+
+        /* Crossfader */
+        .crossfader-section {
+            background: var(--bg-tertiary);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .crossfader-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .crossfader {
+            width: 100%;
+            height: 40px;
+            -webkit-appearance: none;
+            background: linear-gradient(to right, 
+                var(--accent-color) 0%, 
+                var(--bg-primary) 50%, 
+                var(--accent-hover) 100%);
+            border-radius: 20px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .crossfader::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 30px;
+            height: 30px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        /* Visualizer */
+        .visualizer-section {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        #visualizer {
+            width: 100%;
+            height: 200px;
+            background: var(--bg-primary);
+            border-radius: 5px;
+        }
+
+        /* Info Panel */
+        .info-panel {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .checkbox-wrapper input[type="checkbox"] {
+            margin-right: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dsp-chains {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Dual Chain Music Player with Adaptive Loudness</h1>
+
+        <!-- File Selection -->
+        <div class="file-section">
+            <div class="file-input-wrapper">
+                <label class="file-input-button">
+                    Choose Music File
+                    <input type="file" id="fileInput" accept="audio/*">
+                </label>
+            </div>
+            <span id="fileName" style="margin-left: 20px; color: var(--text-secondary);">No file selected</span>
+        </div>
+
+        <!-- Player Controls -->
+        <div class="player-section">
+            <div class="now-playing">
+                <h3>NOW PLAYING</h3>
+                <h2 id="trackTitle">-</h2>
+            </div>
+
+            <div class="transport-controls">
+                <button class="transport-button" id="prevBtn" disabled>⏮</button>
+                <button class="transport-button play-pause" id="playBtn" disabled>▶</button>
+                <button class="transport-button" id="nextBtn" disabled>⏭</button>
+            </div>
+
+            <div class="progress-section">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="time-display">
+                    <span id="currentTime">0:00</span>
+                    <span id="duration">0:00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- DSP Controls -->
+        <div class="dsp-section">
+            <h2 style="margin-bottom: 20px;">DSP Processing Chains</h2>
+            
+            <div class="dsp-chains">
+                <!-- Chain A -->
+                <div class="dsp-chain">
+                    <h3>Chain A - Adaptive Loudness</h3>
+                    
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="chainAEnabled" checked>
+                        <label for="chainAEnabled">Enable Chain A</label>
+                    </div>
+
+                    <div class="dsp-control">
+                        <label>
+                            Environment Noise: <span class="value-display" id="noiseAValue">40</span> dB
+                        </label>
+                        <input type="range" id="noiseA" min="20" max="80" value="40" step="1">
+                    </div>
+
+                    <div class="dsp-control">
+                        <label>
+                            Target Loudness: <span class="value-display" id="targetAValue">48</span> dB
+                        </label>
+                        <input type="range" id="targetA" min="30" max="90" value="48" step="1">
+                    </div>
+
+                    <div class="dsp-control">
+                        <label>
+                            Perceptual Compensation: <span class="value-display" id="compAValue">40</span>%
+                        </label>
+                        <input type="range" id="compensationA" min="0" max="100" value="40" step="5">
+                    </div>
+
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="adaptiveA" checked>
+                        <label for="adaptiveA">Time-Adaptive Mode</label>
+                    </div>
+                </div>
+
+                <!-- Chain B -->
+                <div class="dsp-chain">
+                    <h3>Chain B - Alternative Processing</h3>
+                    
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="chainBEnabled" checked>
+                        <label for="chainBEnabled">Enable Chain B</label>
+                    </div>
+
+                    <div class="dsp-control">
+                        <label>
+                            Environment Noise: <span class="value-display" id="noiseBValue">60</span> dB
+                        </label>
+                        <input type="range" id="noiseB" min="20" max="80" value="60" step="1">
+                    </div>
+
+                    <div class="dsp-control">
+                        <label>
+                            Target Loudness: <span class="value-display" id="targetBValue">68</span> dB
+                        </label>
+                        <input type="range" id="targetB" min="30" max="90" value="68" step="1">
+                    </div>
+
+                    <div class="dsp-control">
+                        <label>
+                            Perceptual Compensation: <span class="value-display" id="compBValue">60</span>%
+                        </label>
+                        <input type="range" id="compensationB" min="0" max="100" value="60" step="5">
+                    </div>
+
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="adaptiveB">
+                        <label for="adaptiveB">Time-Adaptive Mode</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crossfader -->
+            <div class="crossfader-section">
+                <h3 style="margin-bottom: 15px;">Wet/Dry Mix</h3>
+                <div class="crossfader-label">
+                    <span>Chain A</span>
+                    <span id="crossfadeValue">A: 50% / B: 50%</span>
+                    <span>Chain B</span>
+                </div>
+                <input type="range" class="crossfader" id="crossfader" min="0" max="100" value="50">
+                
+                <div style="margin-top: 15px;">
+                    <button id="toggleAB" style="
+                        background: var(--accent-color);
+                        color: var(--bg-primary);
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">A/B Toggle</button>
+                    
+                    <button id="morphAB" style="
+                        background: var(--bg-tertiary);
+                        color: var(--text-primary);
+                        border: 1px solid var(--border-color);
+                        padding: 8px 16px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin-left: 10px;
+                    ">Auto Morph</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visualizer -->
+        <div class="visualizer-section">
+            <h3 style="margin-bottom: 15px;">Frequency Spectrum</h3>
+            <canvas id="visualizer"></canvas>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="info-panel" id="infoPanel">
+            <strong>System Info:</strong><br>
+            <span id="systemInfo">Initializing...</span>
+        </div>
+    </div>
+
+    <!-- Include dependencies -->
+    <script src="tidal_complete.js"></script>
+    <script src="adaptive_loudness_processor_standalone.js"></script>
+    
+    <script>
+        // Dual Chain Audio Processor
+        class DualChainAudioProcessor {
+            constructor(audioContext) {
+                this.context = audioContext;
+                this.isInitialized = false;
+                
+                // Source and destination
+                this.source = null;
+                this.masterGain = this.context.createGain();
+                this.masterGain.gain.value = 0.7; // Prevent clipping when both chains are active
+                this.masterGain.connect(this.context.destination);
+                
+                // Analysis (DO NOT connect to destination!)
+                this.analyser = this.context.createAnalyser();
+                this.analyser.fftSize = 2048;
+                
+                // Chain A components
+                this.chainA = {
+                    input: this.context.createGain(),
+                    processor: null,
+                    output: this.context.createGain(),
+                    scriptNode: null,
+                    enabled: true
+                };
+                
+                // Chain B components
+                this.chainB = {
+                    input: this.context.createGain(),
+                    processor: null,
+                    output: this.context.createGain(),
+                    scriptNode: null,
+                    enabled: true
+                };
+                
+                // Initialize output gains
+                this.chainA.output.gain.value = 0.707; // -3dB for equal power
+                this.chainB.output.gain.value = 0.707;
+                
+                // Crossfader gains
+                this.crossfadeValue = 0.5;
+                
+                // Initialize processors
+                this.initializeChains();
+            }
+            
+            async initializeChains() {
+                // Create processors
+                this.chainA.processor = new AdaptiveLoudnessProcessor(this.context.sampleRate, {
+                    taps: 257,  // Smaller for performance
+                    perceptualCompensation: 0.4
+                });
+                
+                this.chainB.processor = new AdaptiveLoudnessProcessor(this.context.sampleRate, {
+                    taps: 257,
+                    perceptualCompensation: 0.6
+                });
+                
+                // Create ScriptProcessorNodes for each chain
+                const bufferSize = 4096;
+                
+                // Chain A processing
+                this.chainA.scriptNode = this.context.createScriptProcessor(bufferSize, 2, 2);
+                this.chainA.scriptNode.onaudioprocess = (e) => {
+                    const inputBuffer = e.inputBuffer;
+                    const outputBuffer = e.outputBuffer;
+                    
+                    if (!this.chainA.enabled) {
+                        // Pass through
+                        for (let ch = 0; ch < outputBuffer.numberOfChannels; ch++) {
+                            const input = inputBuffer.getChannelData(ch);
+                            const output = outputBuffer.getChannelData(ch);
+                            output.set(input);
+                        }
+                        return;
+                    }
+                    
+                    // Process each channel with adaptive loudness
+                    for (let ch = 0; ch < outputBuffer.numberOfChannels; ch++) {
+                        const input = inputBuffer.getChannelData(ch);
+                        const output = outputBuffer.getChannelData(ch);
+                        
+                        // Create buffer objects for processor
+                        const inBuf = { 
+                            getChannelData: () => input, 
+                            numberOfChannels: 1, 
+                            length: input.length 
+                        };
+                        const outBuf = { 
+                            getChannelData: () => output, 
+                            numberOfChannels: 1, 
+                            length: output.length 
+                        };
+                        
+                        // Process single channel
+                        this.chainA.processor.processBuffer(inBuf, outBuf);
+                    }
+                };
+                
+                // Chain B processing
+                this.chainB.scriptNode = this.context.createScriptProcessor(bufferSize, 2, 2);
+                this.chainB.scriptNode.onaudioprocess = (e) => {
+                    const inputBuffer = e.inputBuffer;
+                    const outputBuffer = e.outputBuffer;
+                    
+                    if (!this.chainB.enabled) {
+                        // Pass through
+                        for (let ch = 0; ch < outputBuffer.numberOfChannels; ch++) {
+                            const input = inputBuffer.getChannelData(ch);
+                            const output = outputBuffer.getChannelData(ch);
+                            output.set(input);
+                        }
+                        return;
+                    }
+                    
+                    // Process each channel with adaptive loudness
+                    for (let ch = 0; ch < outputBuffer.numberOfChannels; ch++) {
+                        const input = inputBuffer.getChannelData(ch);
+                        const output = outputBuffer.getChannelData(ch);
+                        
+                        // Create buffer objects for processor
+                        const inBuf = { 
+                            getChannelData: () => input, 
+                            numberOfChannels: 1, 
+                            length: input.length 
+                        };
+                        const outBuf = { 
+                            getChannelData: () => output, 
+                            numberOfChannels: 1, 
+                            length: output.length 
+                        };
+                        
+                        // Process single channel
+                        this.chainB.processor.processBuffer(inBuf, outBuf);
+                    }
+                };
+                
+                // Connect chains
+                this.chainA.input.connect(this.chainA.scriptNode);
+                this.chainA.scriptNode.connect(this.chainA.output);
+                
+                this.chainB.input.connect(this.chainB.scriptNode);
+                this.chainB.scriptNode.connect(this.chainB.output);
+                
+                // Connect outputs to master (only once!)
+                this.chainA.output.connect(this.masterGain);
+                this.chainB.output.connect(this.masterGain);
+                
+                // Connect analyser after master gain
+                this.masterGain.connect(this.analyser);
+                
+                // Set initial crossfade
+                this.updateCrossfade(0.5);
+                
+                this.isInitialized = true;
+            }
+            
+            connectSource(sourceNode) {
+                if (this.source) {
+                    this.source.disconnect();
+                }
+                
+                this.source = sourceNode;
+                
+                // Connect source to both chains
+                this.source.connect(this.chainA.input);
+                this.source.connect(this.chainB.input);
+            }
+            
+            updateCrossfade(value) {
+                this.crossfadeValue = value;
+                
+                // Linear crossfade for debugging
+                // value: 0 = 100% A, 1 = 100% B
+                const gainA = 1 - value;
+                const gainB = value;
+                
+                console.log(`Setting gains - A: ${gainA}, B: ${gainB}`);
+                
+                // Apply gains immediately
+                this.chainA.output.gain.value = gainA;
+                this.chainB.output.gain.value = gainB;
+                
+                // Debug current connections
+                console.log('Chain A output connected:', this.chainA.output.numberOfOutputs);
+                console.log('Chain B output connected:', this.chainB.output.numberOfOutputs);
+            }
+            
+            setChainEnabled(chain, enabled) {
+                if (chain === 'A') {
+                    this.chainA.enabled = enabled;
+                } else if (chain === 'B') {
+                    this.chainB.enabled = enabled;
+                }
+            }
+            
+            updateChainParameters(chain, params) {
+                const targetChain = chain === 'A' ? this.chainA : this.chainB;
+                
+                if (params.noiseFloor !== undefined && params.playbackLevel !== undefined) {
+                    targetChain.processor.updateEnvironment(params.noiseFloor, params.playbackLevel);
+                }
+                
+                if (params.perceptualCompensation !== undefined) {
+                    targetChain.processor.options.perceptualCompensation = params.perceptualCompensation;
+                }
+                
+                if (params.adaptiveMode !== undefined) {
+                    targetChain.processor.options.enableAdaptive = params.adaptiveMode;
+                    if (!params.adaptiveMode) {
+                        // Reset listening time if adaptive mode is disabled
+                        targetChain.processor.listeningStartTime = Date.now();
+                    }
+                }
+            }
+            
+            getDebugInfo() {
+                return {
+                    chainA: this.chainA.processor.getDebugInfo(),
+                    chainB: this.chainB.processor.getDebugInfo(),
+                    crossfade: this.crossfadeValue,
+                    chainAEnabled: this.chainA.enabled,
+                    chainBEnabled: this.chainB.enabled
+                };
+            }
+        }
+        
+        // Application State
+        let audioContext = null;
+        let audioProcessor = null;
+        let currentSource = null;
+        let isPlaying = false;
+        let audioBuffer = null;
+        let startTime = 0;
+        let pauseTime = 0;
+        
+        // UI Elements
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const trackTitle = document.getElementById('trackTitle');
+        const playBtn = document.getElementById('playBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const currentTimeEl = document.getElementById('currentTime');
+        const durationEl = document.getElementById('duration');
+        const crossfader = document.getElementById('crossfader');
+        const crossfadeValue = document.getElementById('crossfadeValue');
+        const systemInfo = document.getElementById('systemInfo');
+        
+        // Initialize audio context
+        async function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioProcessor = new DualChainAudioProcessor(audioContext);
+                
+                // Start visualization
+                startVisualization();
+                
+                // Update system info
+                updateSystemInfo();
+                setInterval(updateSystemInfo, 100);
+            }
+        }
+        
+        // File handling
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            fileName.textContent = file.name;
+            trackTitle.textContent = file.name.replace(/\.[^/.]+$/, "");
+            
+            await initAudio();
+            
+            // Load audio file
+            const arrayBuffer = await file.arrayBuffer();
+            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            // Update duration
+            durationEl.textContent = formatTime(audioBuffer.duration);
+            
+            // Enable play button
+            playBtn.disabled = false;
+            
+            // Stop current playback if any
+            if (isPlaying) {
+                stopPlayback();
+            }
+        });
+        
+        // Playback control
+        playBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                pausePlayback();
+            } else {
+                startPlayback();
+            }
+        });
+        
+        function startPlayback() {
+            if (!audioBuffer) return;
+            
+            // Create buffer source
+            currentSource = audioContext.createBufferSource();
+            currentSource.buffer = audioBuffer;
+            
+            // Connect to processor
+            audioProcessor.connectSource(currentSource);
+            
+            // Calculate start offset
+            const offset = pauseTime;
+            startTime = audioContext.currentTime - offset;
+            
+            // Start playback
+            currentSource.start(0, offset);
+            
+            // Handle end of playback
+            currentSource.onended = () => {
+                if (isPlaying) {
+                    stopPlayback();
+                }
+            };
+            
+            isPlaying = true;
+            playBtn.textContent = '⏸';
+            
+            // Start progress update
+            updateProgress();
+        }
+        
+        function pausePlayback() {
+            if (!isPlaying) return;
+            
+            pauseTime = audioContext.currentTime - startTime;
+            currentSource.stop();
+            currentSource.disconnect();
+            
+            isPlaying = false;
+            playBtn.textContent = '▶';
+        }
+        
+        function stopPlayback() {
+            if (currentSource) {
+                currentSource.stop();
+                currentSource.disconnect();
+            }
+            
+            isPlaying = false;
+            pauseTime = 0;
+            startTime = 0;
+            playBtn.textContent = '▶';
+            progressFill.style.width = '0%';
+            currentTimeEl.textContent = '0:00';
+        }
+        
+        // Progress bar
+        function updateProgress() {
+            if (!isPlaying) return;
+            
+            const currentTime = audioContext.currentTime - startTime;
+            const duration = audioBuffer.duration;
+            const progress = (currentTime / duration) * 100;
+            
+            progressFill.style.width = `${Math.min(progress, 100)}%`;
+            currentTimeEl.textContent = formatTime(currentTime);
+            
+            if (currentTime < duration) {
+                requestAnimationFrame(updateProgress);
+            }
+        }
+        
+        progressBar.addEventListener('click', (e) => {
+            if (!audioBuffer) return;
+            
+            const rect = progressBar.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percentage = x / rect.width;
+            const newTime = percentage * audioBuffer.duration;
+            
+            if (isPlaying) {
+                stopPlayback();
+                pauseTime = newTime;
+                startPlayback();
+            } else {
+                pauseTime = newTime;
+                progressFill.style.width = `${percentage * 100}%`;
+                currentTimeEl.textContent = formatTime(newTime);
+            }
+        });
+        
+        // DSP Controls - Chain A
+        const noiseA = document.getElementById('noiseA');
+        const targetA = document.getElementById('targetA');
+        const compensationA = document.getElementById('compensationA');
+        const adaptiveA = document.getElementById('adaptiveA');
+        const chainAEnabled = document.getElementById('chainAEnabled');
+        
+        noiseA.addEventListener('input', (e) => {
+            document.getElementById('noiseAValue').textContent = e.target.value;
+            updateChainA();
+        });
+        
+        targetA.addEventListener('input', (e) => {
+            document.getElementById('targetAValue').textContent = e.target.value;
+            updateChainA();
+        });
+        
+        compensationA.addEventListener('input', (e) => {
+            document.getElementById('compAValue').textContent = e.target.value;
+            updateChainA();
+        });
+        
+        adaptiveA.addEventListener('change', updateChainA);
+        chainAEnabled.addEventListener('change', (e) => {
+            if (audioProcessor) {
+                audioProcessor.setChainEnabled('A', e.target.checked);
+            }
+        });
+        
+        function updateChainA() {
+            if (!audioProcessor) return;
+            
+            audioProcessor.updateChainParameters('A', {
+                noiseFloor: parseFloat(noiseA.value),
+                playbackLevel: parseFloat(targetA.value),
+                perceptualCompensation: parseFloat(compensationA.value) / 100,
+                adaptiveMode: adaptiveA.checked
+            });
+        }
+        
+        // DSP Controls - Chain B
+        const noiseB = document.getElementById('noiseB');
+        const targetB = document.getElementById('targetB');
+        const compensationB = document.getElementById('compensationB');
+        const adaptiveB = document.getElementById('adaptiveB');
+        const chainBEnabled = document.getElementById('chainBEnabled');
+        
+        noiseB.addEventListener('input', (e) => {
+            document.getElementById('noiseBValue').textContent = e.target.value;
+            updateChainB();
+        });
+        
+        targetB.addEventListener('input', (e) => {
+            document.getElementById('targetBValue').textContent = e.target.value;
+            updateChainB();
+        });
+        
+        compensationB.addEventListener('input', (e) => {
+            document.getElementById('compBValue').textContent = e.target.value;
+            updateChainB();
+        });
+        
+        adaptiveB.addEventListener('change', updateChainB);
+        chainBEnabled.addEventListener('change', (e) => {
+            if (audioProcessor) {
+                audioProcessor.setChainEnabled('B', e.target.checked);
+            }
+        });
+        
+        function updateChainB() {
+            if (!audioProcessor) return;
+            
+            audioProcessor.updateChainParameters('B', {
+                noiseFloor: parseFloat(noiseB.value),
+                playbackLevel: parseFloat(targetB.value),
+                perceptualCompensation: parseFloat(compensationB.value) / 100,
+                adaptiveMode: adaptiveB.checked
+            });
+        }
+        
+        // Crossfader
+        crossfader.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value) / 100;
+            
+            if (audioProcessor) {
+                audioProcessor.updateCrossfade(value);
+            }
+            
+            // Update display
+            const aPercent = Math.round((1 - value) * 100);
+            const bPercent = Math.round(value * 100);
+            crossfadeValue.textContent = `A: ${aPercent}% / B: ${bPercent}%`;
+            
+            // Debug log
+            console.log(`Crossfade - A: ${aPercent}%, B: ${bPercent}%, Raw value: ${value}`);
+        });
+        
+        // A/B Toggle
+        document.getElementById('toggleAB').addEventListener('click', () => {
+            const current = parseFloat(crossfader.value);
+            const target = current < 50 ? 100 : 0;
+            
+            // Animate crossfader
+            animateCrossfade(current, target, 300);
+        });
+        
+        // Auto Morph
+        let morphInterval = null;
+        document.getElementById('morphAB').addEventListener('click', (e) => {
+            if (morphInterval) {
+                clearInterval(morphInterval);
+                morphInterval = null;
+                e.target.textContent = 'Auto Morph';
+                e.target.style.background = 'var(--bg-tertiary)';
+            } else {
+                let direction = 1;
+                let value = parseFloat(crossfader.value);
+                
+                morphInterval = setInterval(() => {
+                    value += direction * 0.5;
+                    
+                    if (value >= 100) {
+                        value = 100;
+                        direction = -1;
+                    } else if (value <= 0) {
+                        value = 0;
+                        direction = 1;
+                    }
+                    
+                    crossfader.value = value;
+                    crossfader.dispatchEvent(new Event('input'));
+                }, 50);
+                
+                e.target.textContent = 'Stop Morph';
+                e.target.style.background = 'var(--accent-color)';
+            }
+        });
+        
+        function animateCrossfade(from, to, duration) {
+            const startTime = performance.now();
+            
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease-in-out
+                const eased = progress < 0.5 
+                    ? 2 * progress * progress 
+                    : -1 + (4 - 2 * progress) * progress;
+                
+                const value = from + (to - from) * eased;
+                crossfader.value = value;
+                crossfader.dispatchEvent(new Event('input'));
+                
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+            
+            requestAnimationFrame(update);
+        }
+        
+        // Visualization
+        function startVisualization() {
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            const bufferLength = audioProcessor.analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function draw() {
+                requestAnimationFrame(draw);
+                
+                audioProcessor.analyser.getByteFrequencyData(dataArray);
+                
+                ctx.fillStyle = 'rgb(10, 10, 10)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    barHeight = (dataArray[i] / 255) * canvas.height * 0.7;
+                    
+                    const hue = (i / bufferLength) * 120 + 160; // Cyan to green
+                    ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    
+                    x += barWidth + 1;
+                    if (x > canvas.width) break;
+                }
+            }
+            
+            draw();
+        }
+        
+        // System info update
+        function updateSystemInfo() {
+            if (!audioProcessor) {
+                systemInfo.textContent = 'Not initialized';
+                return;
+            }
+            
+            const info = audioProcessor.getDebugInfo();
+            
+            systemInfo.innerHTML = `
+                Sample Rate: ${audioContext.sampleRate} Hz | 
+                Chain A: ${info.chainAEnabled ? 'ON' : 'OFF'} (${info.chainA.currentPhon.toFixed(1)} → ${info.chainA.referencePhon.toFixed(1)} phon, ${(info.chainA.effectiveCompensation * 100).toFixed(0)}%) | 
+                Chain B: ${info.chainBEnabled ? 'ON' : 'OFF'} (${info.chainB.currentPhon.toFixed(1)} → ${info.chainB.referencePhon.toFixed(1)} phon, ${(info.chainB.effectiveCompensation * 100).toFixed(0)}%) | 
+                Crossfade: ${Math.round((1 - info.crossfade) * 100)}/${Math.round(info.crossfade * 100)}
+            `;
+        }
+        
+        // Utility functions
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // Initialize on load
+        window.addEventListener('load', () => {
+            // Set initial values
+            updateChainA();
+            updateChainB();
+        });
+    </script>
+</body>
+</html>

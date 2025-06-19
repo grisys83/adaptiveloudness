@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Adaptive Loudness Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .control-group {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #666;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 10px 0;
+        }
+        .value-display {
+            display: inline-block;
+            min-width: 60px;
+            font-weight: bold;
+            color: #007AFF;
+        }
+        button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover {
+            background: #0051D5;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .info-panel {
+            margin-top: 30px;
+            padding: 20px;
+            background: #e8f4f8;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #fff3cd;
+            color: #856404;
+        }
+        #visualizer {
+            width: 100%;
+            height: 200px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎧 Adaptive Loudness System Demo</h1>
+        
+        <div class="status" id="status">
+            시스템 준비 중...
+        </div>
+        
+        <div class="control-group">
+            <h3>환경 설정</h3>
+            <label>
+                환경 소음 레벨: <span class="value-display" id="noiseValue">40</span> dB
+            </label>
+            <input type="range" id="noiseFloor" min="20" max="80" value="40" step="1">
+            
+            <label>
+                재생 레벨: <span class="value-display" id="playbackValue">48</span> dB
+            </label>
+            <input type="range" id="playbackLevel" min="30" max="90" value="48" step="1">
+        </div>
+        
+        <div class="control-group">
+            <h3>보정 설정</h3>
+            <label>
+                인지적 보상: <span class="value-display" id="compensationValue">40</span>%
+            </label>
+            <input type="range" id="compensation" min="0" max="100" value="40" step="5">
+            
+            <label>
+                <input type="checkbox" id="adaptiveMode" checked>
+                시간 적응형 모드 (청취 시간에 따라 보정 감소)
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <h3>오디오 제어</h3>
+            <button id="startBtn">시작</button>
+            <button id="stopBtn" disabled>정지</button>
+            <button id="loadFileBtn">파일 로드</button>
+            <input type="file" id="fileInput" accept="audio/*" style="display: none;">
+            
+            <div style="margin-top: 15px;">
+                <label>
+                    <input type="checkbox" id="bypassCheck">
+                    바이패스 (A/B 비교)
+                </label>
+            </div>
+        </div>
+        
+        <canvas id="visualizer"></canvas>
+        
+        <div class="info-panel" id="debugInfo">
+            <strong>시스템 정보:</strong><br>
+            대기 중...
+        </div>
+    </div>
+    
+    <script src="tidal.js"></script>
+    <script>
+        // Adaptive Loudness Processor 클래스 (위의 코드 포함)
+        ${fs.readFileSync('adaptive_loudness_processor.js', 'utf8')}
+        
+        // 애플리케이션 상태
+        let audioContext = null;
+        let sourceNode = null;
+        let processorNode = null;
+        let analyserNode = null;
+        let isPlaying = false;
+        let processor = null;
+        
+        // UI 요소
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const loadFileBtn = document.getElementById('loadFileBtn');
+        const fileInput = document.getElementById('fileInput');
+        const noiseSlider = document.getElementById('noiseFloor');
+        const playbackSlider = document.getElementById('playbackLevel');
+        const compensationSlider = document.getElementById('compensation');
+        const adaptiveCheck = document.getElementById('adaptiveMode');
+        const bypassCheck = document.getElementById('bypassCheck');
+        const statusDiv = document.getElementById('status');
+        const debugDiv = document.getElementById('debugInfo');
+        
+        // 값 표시 업데이트
+        noiseSlider.oninput = () => {
+            document.getElementById('noiseValue').textContent = noiseSlider.value;
+            updateProcessor();
+        };
+        
+        playbackSlider.oninput = () => {
+            document.getElementById('playbackValue').textContent = playbackSlider.value;
+            updateProcessor();
+        };
+        
+        compensationSlider.oninput = () => {
+            document.getElementById('compensationValue').textContent = compensationSlider.value;
+            if (processor) {
+                processor.options.perceptualCompensation = compensationSlider.value / 100;
+                updateProcessor();
+            }
+        };
+        
+        // 오디오 컨텍스트 초기화
+        async function initAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // AudioWorklet 모듈 로드
+                await audioContext.audioWorklet.addModule('adaptive_loudness_worklet.js');
+                
+                // 프로세서 생성
+                processor = new AdaptiveLoudnessProcessor(audioContext.sampleRate);
+                
+                statusDiv.textContent = '시스템 준비 완료';
+                statusDiv.style.background = '#d4edda';
+                statusDiv.style.color = '#155724';
+                
+                // 디버그 정보 업데이트
+                setInterval(updateDebugInfo, 100);
+                
+            } catch (error) {
+                console.error('오디오 초기화 실패:', error);
+                statusDiv.textContent = '오디오 초기화 실패: ' + error.message;
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+            }
+        }
+        
+        // 프로세서 업데이트
+        function updateProcessor() {
+            if (!processor) return;
+            
+            const noiseFloor = parseFloat(noiseSlider.value);
+            const playbackLevel = parseFloat(playbackSlider.value);
+            
+            processor.updateEnvironment(noiseFloor, playbackLevel);
+            
+            if (processorNode && processorNode.port) {
+                processorNode.port.postMessage({
+                    type: 'updateEnvironment',
+                    noiseFloor: noiseFloor,
+                    playbackLevel: playbackLevel
+                });
+            }
+        }
+        
+        // 디버그 정보 업데이트
+        function updateDebugInfo() {
+            if (!processor) return;
+            
+            const info = processor.getDebugInfo();
+            debugDiv.innerHTML = `
+                <strong>시스템 정보:</strong><br>
+                현재 Phon: ${info.currentPhon.toFixed(1)}<br>
+                목표 Phon: ${info.referencePhon.toFixed(1)}<br>
+                적응 계수: ${(info.adaptiveFactor * 100).toFixed(1)}%<br>
+                인지 보상: ${(info.perceptualCompensation * 100).toFixed(1)}%<br>
+                실효 보상: ${(info.effectiveCompensation * 100).toFixed(1)}%<br>
+                청취 시간: ${info.listeningMinutes.toFixed(1)}분<br>
+                샘플레이트: ${audioContext ? audioContext.sampleRate : 'N/A'} Hz
+            `;
+        }
+        
+        // 시각화
+        function setupVisualizer() {
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            analyserNode = audioContext.createAnalyser();
+            analyserNode.fftSize = 2048;
+            
+            const bufferLength = analyserNode.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function draw() {
+                requestAnimationFrame(draw);
+                
+                analyserNode.getByteFrequencyData(dataArray);
+                
+                ctx.fillStyle = 'rgb(240, 240, 240)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    barHeight = (dataArray[i] / 255) * canvas.height * 0.8;
+                    
+                    ctx.fillStyle = `hsl(${i / bufferLength * 120}, 70%, 50%)`;
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    
+                    x += barWidth + 1;
+                    if (x > canvas.width) break;
+                }
+            }
+            
+            draw();
+        }
+        
+        // 이벤트 핸들러
+        startBtn.onclick = async () => {
+            if (!audioContext) await initAudio();
+            
+            try {
+                // 마이크 입력 사용
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                sourceNode = audioContext.createMediaStreamSource(stream);
+                
+                // AudioWorklet 노드 생성
+                processorNode = new AudioWorkletNode(audioContext, 'adaptive-loudness-processor');
+                
+                // 연결
+                sourceNode.connect(processorNode);
+                
+                if (!bypassCheck.checked) {
+                    processorNode.connect(audioContext.destination);
+                } else {
+                    sourceNode.connect(audioContext.destination);
+                }
+                
+                // 시각화 설정
+                if (!analyserNode) setupVisualizer();
+                processorNode.connect(analyserNode);
+                
+                isPlaying = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+                statusDiv.textContent = '처리 중...';
+                
+            } catch (error) {
+                console.error('시작 실패:', error);
+                statusDiv.textContent = '시작 실패: ' + error.message;
+            }
+        };
+        
+        stopBtn.onclick = () => {
+            if (sourceNode) {
+                sourceNode.disconnect();
+                if (sourceNode.mediaStream) {
+                    sourceNode.mediaStream.getTracks().forEach(track => track.stop());
+                }
+            }
+            if (processorNode) {
+                processorNode.disconnect();
+            }
+            
+            isPlaying = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            
+            statusDiv.textContent = '정지됨';
+        };
+        
+        loadFileBtn.onclick = () => fileInput.click();
+        
+        fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            if (!audioContext) await initAudio();
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                // 이전 소스 정리
+                if (sourceNode) sourceNode.disconnect();
+                
+                // 버퍼 소스 생성
+                sourceNode = audioContext.createBufferSource();
+                sourceNode.buffer = audioBuffer;
+                sourceNode.loop = true;
+                
+                // 연결
+                // (이전 코드와 동일한 연결 로직)
+                
+                sourceNode.start();
+                
+                statusDiv.textContent = `파일 재생 중: ${file.name}`;
+                
+            } catch (error) {
+                console.error('파일 로드 실패:', error);
+                statusDiv.textContent = '파일 로드 실패: ' + error.message;
+            }
+        };
+        
+        bypassCheck.onchange = () => {
+            if (!isPlaying || !sourceNode || !processorNode) return;
+            
+            // 모든 연결 해제
+            sourceNode.disconnect();
+            processorNode.disconnect();
+            
+            // 새로운 연결
+            if (!bypassCheck.checked) {
+                sourceNode.connect(processorNode);
+                processorNode.connect(audioContext.destination);
+                processorNode.connect(analyserNode);
+            } else {
+                sourceNode.connect(audioContext.destination);
+                sourceNode.connect(analyserNode);
+            }
+        };
+        
+        // 초기화
+        window.addEventListener('load', () => {
+            statusDiv.textContent = '시작 버튼을 눌러 초기화하세요';
+        });
+    </script>
+</body>
+</html>

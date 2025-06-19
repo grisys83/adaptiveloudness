@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DSP Debug Test</title>
+</head>
+<body>
+    <h1>DSP Debug Test</h1>
+    <pre id="output"></pre>
+    
+    <script src="tidal_complete.js"></script>
+    <script src="adaptive_loudness_processor_standalone.js"></script>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        }
+        
+        // Test 1: Check if functions are loaded
+        log('=== Function Availability Test ===');
+        log('firwin2 available: ' + (typeof firwin2 !== 'undefined'));
+        log('interp available: ' + (typeof interp !== 'undefined'));
+        log('getWindow available: ' + (typeof getWindow !== 'undefined'));
+        log('irfft available: ' + (typeof irfft !== 'undefined'));
+        log('AdaptiveLoudnessProcessor available: ' + (typeof AdaptiveLoudnessProcessor !== 'undefined'));
+        
+        // Test 2: Try creating a processor
+        log('\n=== Processor Creation Test ===');
+        try {
+            const processor = new AdaptiveLoudnessProcessor(48000, {
+                taps: 257,
+                perceptualCompensation: 0.4
+            });
+            log('Processor created successfully');
+            
+            // Test 3: Try designing a filter
+            log('\n=== Filter Design Test ===');
+            try {
+                const coeffs = processor.designFIR(40, 60);
+                log('Filter designed successfully');
+                log('Coefficients length: ' + coeffs.length);
+                log('First 5 coeffs: ' + coeffs.slice(0, 5).join(', '));
+            } catch (e) {
+                log('Filter design error: ' + e.message);
+                console.error(e);
+            }
+            
+        } catch (e) {
+            log('Processor creation error: ' + e.message);
+            console.error(e);
+        }
+        
+        // Test 4: Test crossfade issue simulation
+        log('\n=== Crossfade Test ===');
+        
+        // Create mock audio context
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioContext = new AudioContext();
+        
+        // Create two gain nodes to simulate chains
+        const chainA = audioContext.createGain();
+        const chainB = audioContext.createGain();
+        const master = audioContext.createGain();
+        
+        chainA.connect(master);
+        chainB.connect(master);
+        master.connect(audioContext.destination);
+        
+        // Test different crossfade values
+        function testCrossfade(value) {
+            const gainA = 1 - value;
+            const gainB = value;
+            
+            chainA.gain.value = gainA;
+            chainB.gain.value = gainB;
+            
+            log(`Crossfade ${value}: A=${gainA.toFixed(2)}, B=${gainB.toFixed(2)}`);
+            log(`  Chain A gain.value: ${chainA.gain.value}`);
+            log(`  Chain B gain.value: ${chainB.gain.value}`);
+        }
+        
+        testCrossfade(0);    // 100% A
+        testCrossfade(0.5);  // 50/50
+        testCrossfade(1);    // 100% B
+        
+    </script>
+</body>
+</html>

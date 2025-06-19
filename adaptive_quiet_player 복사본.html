@@ -1,0 +1,2823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adaptive Quiet Music Player</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-color: #00D4D4;
+            --accent-hover: #00E8E8;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --success: #4CAF50;
+            --warning: #FFA500;
+            --danger: #FF6B6B;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: var(--accent-color);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.2em;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 968px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid var(--border-color);
+        }
+
+        .card h2 {
+            color: var(--accent-color);
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            outline: none;
+            -webkit-appearance: none;
+            margin-bottom: 10px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .value-display {
+            text-align: right;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-bottom: 10px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1em;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 20px;
+            background: var(--bg-tertiary);
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .file-input:hover {
+            border-color: var(--accent-color);
+        }
+
+        .status-display {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+
+        .status-line {
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status-label {
+            color: var(--text-secondary);
+        }
+
+        .status-value {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+
+        .meter {
+            height: 20px;
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .meter-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--success), var(--warning), var(--danger));
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+
+        .canvas-container {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        canvas {
+            width: 100%;
+            height: 200px;
+        }
+
+        .adaptive-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .indicator-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            transition: background 0.3s;
+        }
+
+        .indicator-dot.active {
+            background: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-color);
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--bg-tertiary);
+            transition: .4s;
+            border-radius: 30px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: var(--accent-color);
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(30px);
+        }
+        
+        input:disabled + .toggle-slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .playlist-item {
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .playlist-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .playlist-item.active {
+            background: var(--accent-color);
+            color: var(--bg-primary);
+            font-weight: 600;
+        }
+        
+        .playlist-item-index {
+            width: 30px;
+            text-align: center;
+            opacity: 0.6;
+        }
+        
+        .playlist-item-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin: 0 10px;
+        }
+        
+        .playlist-item-duration {
+            opacity: 0.6;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Adaptive Quiet Music Player</h1>
+            <p class="subtitle">환경 소음에 반응하는 조용한 음악 재생 시스템</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Audio Control -->
+            <div class="card">
+                <h2>🎵 Audio Control</h2>
+                
+                <input type="file" id="audioFile" accept="audio/*" class="file-input" multiple>
+                
+                <div class="control-group">
+                    <label>Master Volume</label>
+                    <input type="range" id="masterVolume" min="0" max="100" value="100">
+                    <div class="value-display" id="masterVolumeValue">100%</div>
+                </div>
+
+                <div class="control-group">
+                    <label>Adaptive Mode</label>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span>Manual</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="adaptiveMode" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span>Auto</span>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <button class="btn-secondary" id="prevBtn">⏮ Prev</button>
+                    <button class="btn-primary" id="playBtn">▶️ Play</button>
+                    <button class="btn-secondary" id="nextBtn">⏭ Next</button>
+                    <button class="btn-secondary" id="stopBtn">⏹ Stop</button>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <button class="btn-secondary" id="shuffleBtn">🔀 Shuffle Off</button>
+                    <button class="btn-secondary" id="repeatBtn">🔁 Repeat Off</button>
+                </div>
+                
+                <button class="btn-secondary" id="micBtn">🎤 Start Listening</button>
+                <button class="btn-secondary" id="applyNowBtn" style="background: var(--accent-hover);">⚡ Apply Now</button>
+                
+                <div id="playlistContainer" style="display:none; margin-top: 20px;">
+                    <h3 style="margin-bottom: 10px;">Playlist</h3>
+                    <div id="playlist" style="max-height: 200px; overflow-y: auto; background: var(--bg-tertiary); border-radius: 8px; padding: 10px;"></div>
+                </div>
+
+                <div class="adaptive-indicator">
+                    <div class="indicator-dot" id="quietIndicator"></div>
+                    <span>Quiet Mode Active</span>
+                </div>
+            </div>
+
+            <!-- Environment Monitoring -->
+            <div class="card">
+                <h2>🌍 Environment Monitor</h2>
+                
+                <div class="control-group">
+                    <label>Current Noise Level</label>
+                    <div class="meter">
+                        <div class="meter-fill" id="noiseMeter"></div>
+                    </div>
+                    <div class="value-display" id="noiseLevel">-- dB</div>
+                </div>
+
+                <div class="control-group">
+                    <label>Microphone Sensitivity</label>
+                    <input type="range" id="micSensitivity" min="0.5" max="5" value="2" step="0.1">
+                    <div class="value-display" id="micSensitivityValue">2.0x</div>
+                </div>
+
+                <div class="control-group">
+                    <label>Noise Threshold</label>
+                    <input type="range" id="manualThreshold" min="20" max="80" value="40">
+                    <div class="value-display" id="manualThresholdValue">40 dB</div>
+                </div>
+
+                <div class="status-display">
+                    <div class="status-line">
+                        <span class="status-label">Environment:</span>
+                        <span class="status-value" id="environmentStatus">Monitoring...</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">Auto Gain:</span>
+                        <span class="status-value" id="autoGain">0.0 dB</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">Target Music Level:</span>
+                        <span class="status-value" id="effectiveTarget">60 phon</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">FIR Active:</span>
+                        <span class="status-value" id="firStatus">Ready</span>
+                    </div>
+                </div>
+
+                <div class="canvas-container">
+                    <canvas id="noiseChart"></canvas>
+                </div>
+                
+                <h3>Audio Chain Status (Filter/Volume)</h3>
+                <div class="canvas-container" style="height: 120px;">
+                    <canvas id="transitionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tone Shaping -->
+            <div class="card">
+                <h2>🎛 Adaptive Tone Shaping</h2>
+                
+                <div class="control-group">
+                    <label>Equal-Loudness Compensation</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="equalLoudnessToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                
+                <div class="control-group" id="autoLoudnessControl" style="display: none;">
+                    <label>Auto Loudness EQ</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoLoudnessToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div class="help-text" style="font-size: 0.8em; color: #888; margin-top: 5px;">
+                        Automatically calculates optimal mastered level
+                    </div>
+                </div>
+                
+                <div id="loudnessControls">
+                    <div class="control-group">
+                        <label>Target Music Level</label>
+                        <input type="range" id="targetPhon" min="20" max="80" value="60">
+                        <div class="value-display" id="phonValue">60 phon</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>Mastered Music Level</label>
+                        <input type="range" id="referencePhon" min="20" max="100" value="70">
+                        <div class="value-display" id="referencePhonValue">70 phon</div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Quiet Enhancement</label>
+                        <input type="range" id="quietEnhancement" min="0" max="100" value="70">
+                        <div class="value-display" id="enhanceValue">70%</div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Desired SNR (Signal above Noise)</label>
+                    <input type="range" id="desiredSNR" min="5" max="30" value="15">
+                    <div class="value-display" id="desiredSNRValue">15 dB</div>
+                    <div class="help-text" style="font-size: 0.8em; color: #888; margin-top: 5px;">
+                        Target Music Level: <span id="targetMusicLevel" style="color: var(--accent-color);">Noise + 15 dB</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Extra Bass/Treble Boost</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="extraBoostToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div id="extraBoostControls">
+                    <div class="control-group">
+                        <label>Bass Adaptation</label>
+                        <input type="range" id="bassAdaptation" min="0" max="20" value="8">
+                        <div class="value-display" id="bassAdaptValue">+8 dB</div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Treble Clarity</label>
+                        <input type="range" id="trebleClarity" min="0" max="10" value="4">
+                        <div class="value-display" id="trebleClarityValue">+4 dB</div>
+                    </div>
+                </div>
+
+                <div class="canvas-container">
+                    <canvas id="responseChart"></canvas>
+                </div>
+                
+                <div class="control-group" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                    <label>System Calibration</label>
+                    <button id="calibrateBtn" style="margin-top: 10px; padding: 8px 20px; width: 100%;">Play Calibration Tone</button>
+                    <div class="help-text" style="font-size: 0.9em; color: #00D4D4; margin-top: 10px; line-height: 1.5;">
+                        🎯 Calibration Steps:<br>
+                        1. Set Master Volume to 100%<br>
+                        2. Play calibration tone<br>
+                        3. Adjust system/device volume until SPL meter shows <strong>85 dB</strong><br>
+                        4. Done! All settings now reference real SPL
+                    </div>
+                </div>
+
+                <div class="status-display">
+                    <div class="status-line">
+                        <span class="status-label">Audio Chain A:</span>
+                        <span class="status-value" id="activeFilterDisplay">--</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">Audio Chain B:</span>
+                        <span class="status-value" id="inactiveFilterDisplay">--</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">Crossfade Status:</span>
+                        <span class="status-value" id="crossfadeStatus">Idle</span>
+                    </div>
+                    <div class="status-line">
+                        <span class="status-label">Filter Delay:</span>
+                        <span class="status-value" id="filterDelay">46.4 ms</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ISO 226:2003 Equal-Loudness Contours Data
+        const ISO_FREQ = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
+                         200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600,
+                         2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
+
+        const ISO_CURVES = {
+            20: [74.3,64.4,56.3,49.5,44.7,40.6,37.5,35.0,33.1,31.6,30.2,28.9,27.7,26.6,25.6,
+                 24.7,23.8,22.5,21.2,20.3,19.1,18.1,17.2,16.3,15.0,13.4,11.5,10.4,10.1,11.2,13.4],
+            30: [86.3,75.3,66.2,58.4,52.7,48.0,44.4,41.3,39.2,37.3,35.7,34.2,32.9,31.7,30.6,
+                 29.5,28.4,27.1,25.8,24.7,23.3,22.1,21.0,19.9,18.2,16.1,14.6,13.6,13.3,14.6,17.1],
+            40: [96.9,85.4,76.3,68.3,62.1,57.0,52.5,48.7,46.2,44.0,42.1,40.4,38.9,37.5,36.3,
+                 35.1,33.9,32.6,31.2,29.9,28.4,27.1,25.9,24.7,22.9,20.7,19.0,17.8,17.3,18.6,21.4],
+            50: [107.6,95.6,86.4,78.3,71.1,65.0,60.1,56.1,53.4,51.0,48.9,47.1,45.4,43.8,42.3,
+                 40.9,39.4,38.1,36.6,35.1,33.4,32.0,30.6,29.2,27.4,25.1,23.4,22.1,21.6,22.8,25.8],
+            60: [118.6,106.1,96.8,88.4,81.3,75.0,69.2,65.1,62.2,59.6,57.3,55.3,53.5,51.7,50.1,
+                 48.6,47.0,45.6,44.0,42.3,40.5,38.9,37.3,35.6,33.7,31.3,29.6,28.3,27.9,29.1,32.3],
+            70: [129.5,116.9,107.1,98.3,91.2,84.7,78.5,74.2,71.1,68.2,65.7,63.5,61.5,59.6,57.9,
+                 56.2,54.5,53.0,51.3,49.5,47.6,45.8,44.1,42.3,40.1,37.7,35.9,34.6,34.3,35.4,38.7],
+            80: [139.9,127.3,117.5,108.6,101.4,94.8,88.4,83.9,80.7,77.6,74.9,72.6,70.4,68.3,66.4,
+                 64.6,62.8,61.1,59.3,57.4,55.3,53.4,51.4,49.5,47.2,44.8,43.0,41.7,41.2,42.2,45.6],
+            90: [150.2,137.5,127.7,118.7,111.4,104.8,98.4,93.8,90.4,87.1,84.2,81.7,79.4,77.1,75.1,
+                 73.3,71.4,69.6,67.6,65.6,63.5,61.5,59.5,57.4,55.1,52.7,50.8,49.4,48.8,49.8,53.2],
+            100:[160.4,147.6,137.8,128.8,121.4,114.8,108.3,103.7,100.3,96.9,93.9,91.4,88.9,86.6,84.5,
+                 82.5,80.5,78.6,76.6,74.5,72.4,70.3,68.3,66.2,63.9,61.4,59.5,58.1,57.5,58.5,62.0]
+        };
+
+        // Adaptive Quiet Music Player Implementation
+        class AdaptiveQuietPlayer {
+            constructor() {
+                console.log('Initializing Adaptive Quiet Player...');
+                
+                this.audioContext = null;
+                this.audioElement = null;
+                this.source = null;
+                this.micSource = null;
+                this.analyzer = null;
+                this.isPlaying = false;
+                this.isListening = false;
+                
+                // Playlist management
+                this.playlist = [];
+                this.currentTrackIndex = -1;
+                this.isPlaylistMode = false;
+                this.shuffleMode = false;
+                this.repeatMode = 'off'; // 'off', 'all', 'one'
+                
+                // Initialize interpolated ISO data
+                this.fineGrainedISO226 = this.interpISO(ISO_CURVES, 0.1);
+                
+                // Audio processing nodes - Dual Filter Setup
+                this.masterGain = null;
+                this.firFilterA = null;
+                this.firFilterB = null;
+                this.dryGain = null;
+                this.wetGainA = null;
+                this.wetGainB = null;
+                
+                // Volume A/B transition system
+                this.volumeGainA = null;
+                this.volumeGainB = null;
+                this.currentVolumeNode = 'A';
+                this.targetVolumeValue = 1.0;
+                this.compensationGain = null;
+                
+                // Environment monitoring
+                this.noiseLevel = 35; // Realistic quiet room level
+                this.noiseHistory = [];
+                this.autoGain = 0; // Can be positive (boost) or negative (cut)
+                this.environmentSamples = [];
+                
+                // Noise monitoring buffers
+                this.thirtySecondBuffer = [];  // Current 30 seconds of noise samples @ 1Hz
+                this.previousThirtySecondBuffer = [];  // Previous 30 seconds for averaging
+                
+                // FIR filter parameters
+                this.numTaps = 4095;  // High quality for audiophiles
+                this.targetPhon = 60;
+                this.referencePhon = 70;  // More reasonable default (60→70 instead of 60→80)
+                this.firCoeffsA = null;
+                this.firCoeffsB = null;
+                
+                // Adaptive parameters
+                this.adaptiveMode = true;
+                this.manualThreshold = 40; // User-set noise threshold
+                this.quietEnhancement = 70;
+                this.bassAdaptation = 8;
+                this.trebleClarity = 4;
+                
+                // Calibration parameters
+                this.systemCalibration = 85; // Fixed reference: 85 dB SPL at 0dBFS
+                this.calibrationFrequency = 1000; // Hz
+                this.calibrationOscillator = null;
+                
+                // User-configurable SNR (Signal-to-Noise Ratio)
+                this.desiredSNR = 15; // Default 15 dB above noise floor
+                
+                // Microphone sensitivity calibration
+                this.micSensitivity = 2.0; // Amplification factor for mic input
+                
+                // Equal-loudness compensation toggle
+                this.equalLoudnessEnabled = true;
+                
+                // Extra bass/treble boost toggle
+                this.extraBoostEnabled = true;
+                
+                // Auto loudness EQ parameters
+                this.autoLoudnessEnabled = true;
+                this.kParameter = 20;        // Default decay rate
+                this.deltaMax = 20;          // Default max bass boost
+                this.manualBassMode = false; // Manual K/Delta control mode
+                
+                // Adaptive Filter Switching System
+                this.currentFilter = 'A'; // 'A' or 'B'
+                this.nextFilter = 'B';
+                this.filterDecisionInterval = 30000; // 30 seconds
+                this.crossfadeTime = 10000; // 10 seconds
+                this.isCrossfading = false;
+                this.crossfadeStartTime = 0;
+                this.lastFilterUpdate = 0;
+                this.analysisTimer = null;
+                this.crossfadeTimer = null;
+                this.targetAutoGain = undefined; // Auto gain target during crossfade
+                this.noiseLogTimer = null; // Timer for periodic noise logging
+                this.updateMode = 'filter'; // 'filter' or 'volume' - alternates each update
+                
+                this.setupUI();
+                this.initializeCharts();
+                this.updateFilterDisplays();
+                
+                // Set initial master volume display
+                const masterVolumeSlider = document.getElementById('masterVolume');
+                document.getElementById('masterVolumeValue').textContent = masterVolumeSlider.value + '%';
+                
+                // Apply auto loudness if enabled
+                if (this.autoLoudnessEnabled) {
+                    // Use setTimeout to ensure UI is ready
+                    setTimeout(() => {
+                        // Disable sliders when auto mode is on
+                        const targetSlider = document.getElementById('targetPhon');
+                        const referenceSlider = document.getElementById('referencePhon');
+                        targetSlider.disabled = true;
+                        targetSlider.style.opacity = '0.5';
+                        referenceSlider.disabled = true;
+                        referenceSlider.style.opacity = '0.5';
+                        
+                        // Update auto loudness
+                        this.updateAutoLoudness();
+                    }, 100);
+                }
+                
+                console.log('Adaptive Quiet Player initialized');
+            }
+            
+            async init() {
+                if (!this.audioContext) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('Audio context created:', this.audioContext.sampleRate, 'Hz');
+                }
+                
+                // Resume if suspended
+                if (this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
+                }
+            }
+            
+            // FIR Filter Design (from music player)
+            designFIR(targetGains, sampleRate, numTaps) {
+                const N = numTaps;
+                const M = (N - 1) / 2;
+                const h = new Float32Array(N);
+                
+                // Create frequency array from 0 to Nyquist
+                const numFreqs = 2048;
+                const freqs = new Float32Array(numFreqs);
+                const gains = new Float32Array(numFreqs);
+                
+                for (let i = 0; i < numFreqs; i++) {
+                    freqs[i] = (i / (numFreqs - 1)) * (sampleRate / 2);
+                    gains[i] = this.interpolateGain(targetGains, freqs[i]);
+                }
+                
+                // Apply frequency sampling method with cosine
+                for (let n = 0; n < N; n++) {
+                    h[n] = 0;
+                    for (let k = 0; k < numFreqs; k++) {
+                        const omega = 2 * Math.PI * freqs[k] / sampleRate;
+                        h[n] += gains[k] * Math.cos(omega * (n - M));
+                    }
+                    h[n] *= 2.0 / numFreqs; // Proper scaling factor
+                }
+                
+                // Apply Hamming window
+                for (let n = 0; n < N; n++) {
+                    const window = 0.54 - 0.46 * Math.cos(2 * Math.PI * n / (N - 1));
+                    h[n] *= window;
+                }
+                
+                // Normalize to preserve unity gain at 1kHz
+                // Find the gain at 1kHz
+                let gain1k = 0;
+                const omega1k = 2 * Math.PI * 1000 / sampleRate;
+                for (let n = 0; n < N; n++) {
+                    gain1k += h[n] * Math.cos(omega1k * (n - M));
+                }
+                
+                // Normalize to unity gain at 1kHz
+                if (Math.abs(gain1k) > 1e-10) {
+                    for (let n = 0; n < N; n++) {
+                        h[n] /= Math.abs(gain1k);
+                    }
+                }
+                
+                // Debug: Check filter coefficients
+                const dcGain = h.reduce((a, b) => a + b, 0);
+                const maxCoeff = Math.max(...h);
+                const minCoeff = Math.min(...h);
+                console.log(`[FIR DEBUG] DC Gain: ${dcGain.toFixed(6)}, Max: ${maxCoeff.toFixed(6)}, Min: ${minCoeff.toFixed(6)}`);
+                console.log(`[FIR DEBUG] Gain @ 1kHz: ${gain1k.toFixed(6)} → normalized to 1.0`);
+                
+                return h;
+            }
+            
+            interpolateGain(targetGains, freq) {
+                const freqs = Object.keys(targetGains).map(Number).sort((a, b) => a - b);
+                
+                if (freq <= freqs[0]) return targetGains[freqs[0]];
+                if (freq >= freqs[freqs.length - 1]) return targetGains[freqs[freqs.length - 1]];
+                
+                for (let i = 0; i < freqs.length - 1; i++) {
+                    if (freq >= freqs[i] && freq <= freqs[i + 1]) {
+                        const f1 = freqs[i], f2 = freqs[i + 1];
+                        const g1 = targetGains[f1], g2 = targetGains[f2];
+                        
+                        // Log interpolation for frequency
+                        const logF = Math.log10(freq);
+                        const logF1 = Math.log10(f1);
+                        const logF2 = Math.log10(f2);
+                        const t = (logF - logF1) / (logF2 - logF1);
+                        
+                        return g1 + t * (g2 - g1);
+                    }
+                }
+                
+                return 1.0;
+            }
+            
+            // Helper functions for ISO 226 data
+            interpISO(curves, step) {
+                const phons = Object.keys(curves).map(Number).sort((a, b) => a - b);
+                const result = {};
+                
+                for (let phon = phons[0]; phon <= phons[phons.length - 1]; phon += step) {
+                    const lowerPhon = Math.floor(phon / 10) * 10;
+                    const upperPhon = Math.ceil(phon / 10) * 10;
+                    
+                    if (lowerPhon === upperPhon || lowerPhon < phons[0] || upperPhon > phons[phons.length - 1]) {
+                        result[phon] = curves[lowerPhon] || curves[upperPhon];
+                    } else {
+                        const lowerCurve = curves[lowerPhon];
+                        const upperCurve = curves[upperPhon];
+                        const t = (phon - lowerPhon) / (upperPhon - lowerPhon);
+                        
+                        result[phon] = lowerCurve.map((lower, i) => {
+                            const upper = upperCurve[i];
+                            return lower + t * (upper - lower);
+                        });
+                    }
+                }
+                
+                return result;
+            }
+            
+            phonToSPL(phon, freq = 1000) {
+                const freqIndex = this.findClosestIndex(ISO_FREQ, freq);
+                const phonLevels = Object.keys(this.fineGrainedISO226).map(Number);
+                const closestPhon = phonLevels.reduce((prev, curr) => 
+                    Math.abs(curr - phon) < Math.abs(prev - phon) ? curr : prev
+                );
+                
+                return this.fineGrainedISO226[closestPhon][freqIndex];
+            }
+            
+            findClosestIndex(arr, target) {
+                return arr.reduce((prev, curr, index) => 
+                    Math.abs(curr - target) < Math.abs(arr[prev] - target) ? index : prev, 0
+                );
+            }
+            
+            // Generate adaptive loudness correction using ISO 226 data
+            generateAdaptiveLoudnessFilter() {
+                // If equal-loudness is disabled, return flat response
+                if (!this.equalLoudnessEnabled) {
+                    const flatFilter = new Float32Array(this.numTaps);
+                    // Create impulse response (flat frequency response)
+                    const center = Math.floor(this.numTaps / 2);
+                    flatFilter[center] = 1.0;
+                    return flatFilter;
+                }
+                
+                // Get accurate ISO curve data with auto gain applied
+                const effectiveTargetPhon = this.targetPhon + this.autoGain;
+                
+                // Clamp to valid ISO 226 range (20-100 phon)
+                const targetPhon = Math.round(Math.max(20, Math.min(100, effectiveTargetPhon)));
+                const referencePhon = Math.round(Math.max(20, Math.min(100, this.referencePhon)));
+                
+                console.log(`Generating filter: effective target ${effectiveTargetPhon.toFixed(1)} → clamped ${targetPhon} → reference ${referencePhon} phon`);
+                
+                // Use the nearest available phon value in fineGrainedISO226
+                const availablePhons = Object.keys(this.fineGrainedISO226).map(Number);
+                const nearestTargetPhon = availablePhons.reduce((prev, curr) => 
+                    Math.abs(curr - targetPhon) < Math.abs(prev - targetPhon) ? curr : prev
+                );
+                const nearestReferencePhon = availablePhons.reduce((prev, curr) => 
+                    Math.abs(curr - referencePhon) < Math.abs(prev - referencePhon) ? curr : prev
+                );
+                
+                const targetCurve = this.fineGrainedISO226[nearestTargetPhon];
+                const referenceCurve = this.fineGrainedISO226[nearestReferencePhon];
+                
+                if (!targetCurve || !referenceCurve) {
+                    console.error(`Invalid phon values for ISO curves: target=${nearestTargetPhon}, reference=${nearestReferencePhon}`);
+                    // Return flat response as fallback
+                    const flatFilter = new Float32Array(this.numTaps);
+                    const center = Math.floor(this.numTaps / 2);
+                    flatFilter[center] = 1.0;
+                    return flatFilter;
+                }
+                
+                // Calculate frequency-dependent gains
+                const targetGains = {};
+                const enhancementFactor = this.quietEnhancement / 100;
+                
+                ISO_FREQ.forEach((freq, i) => {
+                    const targetSPL = targetCurve[i];
+                    const referenceSPL = referenceCurve[i];
+                    const gainDB = referenceSPL - targetSPL;
+                    
+                    // Apply 40% perceptual compensation
+                    let adjustedGain = gainDB * 0.4;
+                    
+                    // Additional bass/treble adjustments (only if enabled)
+                    if (this.extraBoostEnabled) {
+                        if (freq <= 200) {
+                            adjustedGain += this.bassAdaptation * enhancementFactor / 20;
+                        } else if (freq >= 4000) {
+                            adjustedGain += this.trebleClarity * enhancementFactor / 20;
+                        }
+                    }
+                    
+                    targetGains[freq] = Math.pow(10, adjustedGain / 20);
+                });
+                
+                return this.designFIR(targetGains, this.audioContext.sampleRate, this.numTaps);
+            }
+            
+            async startEnvironmentMonitoring() {
+                try {
+                    console.log('Requesting microphone access...');
+                    
+                    // Check if getUserMedia is available
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        throw new Error('getUserMedia is not supported in this browser');
+                    }
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        }
+                    });
+                    
+                    console.log('Microphone access granted');
+                    console.log('Audio tracks:', stream.getAudioTracks());
+                    
+                    this.micSource = this.audioContext.createMediaStreamSource(stream);
+                    this.analyzer = this.audioContext.createAnalyser();
+                    this.analyzer.fftSize = 2048; // Increased for better frequency resolution
+                    this.analyzer.smoothingTimeConstant = 0.8; // Some smoothing to reduce jitter
+                    
+                    // Add gain node for mic input boost
+                    this.micGain = this.audioContext.createGain();
+                    this.micGain.gain.value = this.micSensitivity; // Use current sensitivity setting
+                    
+                    this.micSource.connect(this.micGain);
+                    this.micGain.connect(this.analyzer);
+                    this.isListening = true;
+                    
+                    this.monitorNoise();
+                    
+                    // Start periodic noise logging (every 10 seconds)
+                    this.noiseLogTimer = setInterval(() => {
+                        // console.log(`[NOISE MONITOR] Level: ${this.noiseLevel.toFixed(1)} dB | Auto Gain: ${this.autoGain.toFixed(1)} dB | Effective Target: ${Math.round(this.targetPhon + this.autoGain)} phon`);
+                    }, 10000);
+                    
+                    document.getElementById('micBtn').textContent = '🎤 Stop Listening';
+                    document.getElementById('environmentStatus').textContent = 'Active';
+                    
+                    // console.log('Environment monitoring started successfully');
+                } catch (error) {
+                    console.error('Detailed error accessing microphone:', error);
+                    console.error('Error name:', error.name);
+                    console.error('Error message:', error.message);
+                    
+                    let alertMessage = 'Could not access microphone. ';
+                    
+                    if (error.name === 'NotAllowedError') {
+                        alertMessage += 'Permission denied. Please allow microphone access and refresh the page.';
+                    } else if (error.name === 'NotFoundError') {
+                        alertMessage += 'No microphone found. Please connect a microphone.';
+                    } else if (error.name === 'NotReadableError') {
+                        alertMessage += 'Microphone is being used by another application.';
+                    } else if (error.name === 'OverconstrainedError') {
+                        alertMessage += 'Microphone constraints cannot be satisfied.';
+                    } else {
+                        alertMessage += error.message;
+                    }
+                    
+                    alert(alertMessage);
+                }
+            }
+            
+            stopEnvironmentMonitoring() {
+                if (this.micSource) {
+                    this.micSource.disconnect();
+                    this.micSource = null;
+                }
+                this.isListening = false;
+                
+                // Stop noise logging timer
+                if (this.noiseLogTimer) {
+                    clearInterval(this.noiseLogTimer);
+                    this.noiseLogTimer = null;
+                }
+                
+                document.getElementById('micBtn').textContent = '🎤 Start Listening';
+                document.getElementById('environmentStatus').textContent = 'Stopped';
+            }
+            
+            monitorNoise() {
+                if (!this.isListening || !this.analyzer) return;
+                
+                // Use time domain data for better RMS calculation
+                const bufferLength = this.analyzer.fftSize;
+                const dataArray = new Uint8Array(bufferLength);
+                this.analyzer.getByteTimeDomainData(dataArray);
+                
+                // Calculate RMS level from time domain data
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    // Convert from unsigned byte (0-255) to signed (-128 to 127)
+                    const sample = (dataArray[i] - 128) / 128.0;
+                    sum += sample * sample;
+                }
+                const instantRms = Math.sqrt(sum / bufferLength) * 255; // Scale back to 0-255 range
+                
+                // Convert to approximate dB SPL with better calibration
+                // Apply microphone sensitivity adjustment
+                const adjustedRms = instantRms * this.micSensitivity;
+                
+                let instantNoiseLevel;
+                if (adjustedRms < 0.1) {
+                    instantNoiseLevel = 30; // Quiet room floor
+                } else {
+                    // Better calibration for typical computer microphones
+                    // Log scale mapping with improved sensitivity
+                    const normalized = Math.max(0.001, adjustedRms / 255);
+                    // Use a wider range and better scaling
+                    instantNoiseLevel = 40 + 50 * Math.log10(normalized * 100);
+                }
+                
+                // Clamp to realistic range
+                instantNoiseLevel = Math.max(30, Math.min(90, instantNoiseLevel));
+                
+                // Collect samples for 30-second buffer (1 sample per second)
+                const now = Date.now();
+                if (!this.lastSampleTime || now - this.lastSampleTime >= 1000) {
+                    // Add to 30-second buffer  
+                    this.thirtySecondBuffer.push(instantNoiseLevel);
+                    if (this.thirtySecondBuffer.length > 30) { // 30 seconds @ 1Hz
+                        this.thirtySecondBuffer.shift();
+                    }
+                    
+                    this.lastSampleTime = now;
+                }
+                
+                // Use average of current and previous 30-second buffers for more stability
+                if (this.thirtySecondBuffer.length > 0) {
+                    // Calculate RMS of current 30-second buffer
+                    const currentSum = this.thirtySecondBuffer.reduce((acc, val) => acc + val * val, 0);
+                    const currentMeanSquare = currentSum / this.thirtySecondBuffer.length;
+                    const currentRMS = Math.sqrt(currentMeanSquare);
+                    
+                    // If we have previous data, average with it
+                    if (this.previousThirtySecondBuffer.length > 0) {
+                        const prevSum = this.previousThirtySecondBuffer.reduce((acc, val) => acc + val * val, 0);
+                        const prevMeanSquare = prevSum / this.previousThirtySecondBuffer.length;
+                        const prevRMS = Math.sqrt(prevMeanSquare);
+                        
+                        // Average current and previous RMS
+                        this.noiseLevel = (currentRMS + prevRMS) / 2;
+                        // console.log(`Noise RMS - Current: ${currentRMS.toFixed(1)} dB, Previous: ${prevRMS.toFixed(1)} dB, Average: ${this.noiseLevel.toFixed(1)} dB`);
+                    } else {
+                        // Only current data available
+                        this.noiseLevel = currentRMS;
+                    }
+                } else {
+                    // No data yet, use instant value
+                    this.noiseLevel = instantNoiseLevel;
+                }
+                
+                // Update history for chart (show RMS value)
+                this.noiseHistory.push(this.noiseLevel);
+                if (this.noiseHistory.length > 100) {
+                    this.noiseHistory.shift();
+                }
+                
+                // Update adaptive processing
+                if (this.adaptiveMode) {
+                    this.updateAdaptiveProcessing();
+                }
+                
+                // Update UI
+                this.updateEnvironmentUI();
+                
+                // Continue monitoring
+                requestAnimationFrame(() => this.monitorNoise());
+            }
+            
+            
+            // No longer using adaptive threshold - removed
+            
+            updateAdaptiveProcessing() {
+                // Only update UI indicators, NO real-time filter or volume changes
+                
+                // Update quiet mode indicator (use manual threshold)
+                const quietMode = this.noiseLevel < this.manualThreshold;
+                document.getElementById('quietIndicator').classList.toggle('active', quietMode);
+                
+                // Auto gain and filter updates ONLY happen during environment change analysis
+                // (in analyzeEnvironmentAndUpdateFilter method)
+            }
+            
+            // Adaptive Filter System - Core Logic
+            startAdaptiveFilterSystem() {
+                if (!this.adaptiveMode) return;
+                
+                console.log('Starting adaptive filter system...');
+                this.lastFilterUpdate = Date.now();
+                
+                // Start environment analysis timer (30 seconds)
+                this.analysisTimer = setInterval(() => {
+                    this.analyzeEnvironmentAndUpdateFilter();
+                }, this.filterDecisionInterval);
+                
+                console.log('Adaptive filter system started - analyzing every 30 seconds');
+            }
+            
+            stopAdaptiveFilterSystem() {
+                if (this.analysisTimer) {
+                    clearInterval(this.analysisTimer);
+                    this.analysisTimer = null;
+                }
+                
+                if (this.crossfadeTimer) {
+                    clearInterval(this.crossfadeTimer);
+                    this.crossfadeTimer = null;
+                }
+                
+                console.log('Adaptive filter system stopped');
+            }
+            
+            analyzeEnvironmentAndUpdateFilter() {
+                if (!this.isListening || this.isCrossfading) return;
+                
+                console.log(`=== ANALYZING ENVIRONMENT FOR ${this.updateMode.toUpperCase()} UPDATE ===`);
+                
+                // Check if we have enough data (at least 15 seconds)
+                if (this.thirtySecondBuffer.length < 15) {
+                    console.log('Not enough data for analysis, need at least 15 seconds');
+                    return;
+                }
+                
+                // Rotate buffers: move current to previous before starting new cycle
+                if (this.thirtySecondBuffer.length >= 30) {
+                    this.previousThirtySecondBuffer = [...this.thirtySecondBuffer];
+                    console.log('Rotated buffers: current 30s → previous 30s');
+                }
+                
+                // Use averaged noise level (current + previous 30-second buffers)
+                const averagedNoiseLevel = this.noiseLevel; // This is already the averaged value
+                // console.log(`Averaged noise level (current + previous 30s): ${averagedNoiseLevel.toFixed(1)} dB`);
+                
+                // Calculate auto gain based on desired SNR
+                const targetMusicLevel = averagedNoiseLevel + this.desiredSNR;
+                let newAutoGain = targetMusicLevel - this.targetPhon;
+                
+                // Clamp to reasonable range (-30 to +30 dB)
+                newAutoGain = Math.max(-30, Math.min(30, newAutoGain));
+                
+                // console.log(`Target music level: ${averagedNoiseLevel.toFixed(1)} + ${this.desiredSNR} = ${targetMusicLevel.toFixed(1)} dB`);
+                console.log(`Auto gain calculation: ${targetMusicLevel.toFixed(1)} - ${this.targetPhon} = ${newAutoGain.toFixed(1)} dB`);
+                
+                // Update Auto Loudness if enabled (only when updating filter)
+                if (this.autoLoudnessEnabled && this.updateMode === 'filter') {
+                    // Auto mode sets target phon to match the actual music level
+                    const newTargetPhon = Math.round(targetMusicLevel);
+                    
+                    // Only update if changed significantly (more than 2 phon)
+                    if (Math.abs(newTargetPhon - this.targetPhon) > 2) {
+                        console.log(`[Auto Mode] Updating target phon: ${this.targetPhon} → ${newTargetPhon}`);
+                        
+                        // Update target phon slider
+                        const targetSlider = document.getElementById('targetPhon');
+                        const targetDisplay = document.getElementById('phonValue');
+                        targetSlider.value = newTargetPhon;
+                        targetDisplay.textContent = newTargetPhon + ' phon';
+                        this.targetPhon = newTargetPhon;
+                        
+                        // Update reference phon using auto loudness calculation
+                        this.updateAutoLoudness();
+                    }
+                }
+                
+                if (this.updateMode === 'filter') {
+                    // FILTER UPDATE MODE
+                    console.log('Updating FILTER only');
+                    
+                    // Determine optimal filter parameters based on averaged noise environment
+                    const newFilterParams = this.calculateOptimalFilterParams(averagedNoiseLevel, this.autoGain); // Use current autoGain
+                    
+                    console.log('New filter params:', newFilterParams);
+                    
+                    // Generate new filter for the inactive filter path
+                    const targetFilter = this.currentFilter === 'A' ? 'B' : 'A';
+                    this.generateFilterForPath(targetFilter, newFilterParams);
+                    
+                    // Update the inactive filter buffer before starting crossfade
+                    const filterBuffer = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                    if (targetFilter === 'A') {
+                        filterBuffer.copyToChannel(this.firCoeffsA, 0);
+                        this.firFilterA.buffer = filterBuffer;
+                    } else {
+                        filterBuffer.copyToChannel(this.firCoeffsB, 0);
+                        this.firFilterB.buffer = filterBuffer;
+                    }
+                    
+                    // Start crossfade to new filter (WITHOUT auto gain transition)
+                    this.startFilterOnlyCrossfade(targetFilter);
+                    
+                    // Next update will be volume
+                    this.updateMode = 'volume';
+                } else {
+                    // VOLUME UPDATE MODE
+                    console.log('Updating VOLUME only');
+                    console.log(`Auto gain adjustment: ${this.autoGain.toFixed(1)} dB → ${newAutoGain.toFixed(1)} dB`);
+                    
+                    // Store target auto gain and start volume transition
+                    this.targetAutoGain = newAutoGain;
+                    this.startVolumeOnlyTransition();
+                    
+                    // Next update will be filter
+                    this.updateMode = 'filter';
+                }
+            }
+            
+            calculateOptimalFilterParams(avgNoise, autoGainAdjustment) {
+                // Advanced algorithm to determine optimal filter based on environment
+                let bassBoost = this.bassAdaptation;
+                let trebleBoost = this.trebleClarity;
+                let enhancement = this.quietEnhancement;
+                
+                // Adjust based on average noise level vs manual threshold
+                if (avgNoise < this.manualThreshold - 10) {
+                    // Very quiet environment - enhance more
+                    enhancement = Math.min(100, enhancement + 20);
+                    bassBoost = Math.min(20, bassBoost + 3);
+                    trebleBoost = Math.min(10, trebleBoost + 2);
+                } else if (avgNoise > this.manualThreshold + 10) {
+                    // Noisy environment - reduce enhancement
+                    enhancement = Math.max(30, enhancement - 15);
+                    bassBoost = Math.max(0, bassBoost - 2);
+                }
+                
+                // CORRECT: FIR filter target phon = actual output SPL after auto gain
+                // This ensures the filter provides correct loudness compensation for the actual listening level
+                const effectiveTargetPhon = this.targetPhon + autoGainAdjustment;
+                
+                return {
+                    targetPhon: effectiveTargetPhon,  // This will be the actual SPL output
+                    bassBoost: bassBoost,
+                    trebleBoost: trebleBoost,
+                    enhancement: enhancement,
+                    autoGain: autoGainAdjustment
+                };
+            }
+            
+            generateFilterForPath(filterPath, params) {
+                console.log(`Generating new filter for path ${filterPath}:`, params);
+                
+                // Use ISO 226 curves with the effective target phon
+                const targetPhon = Math.round(params.targetPhon);
+                const referencePhon = Math.round(this.referencePhon);
+                
+                // Use the nearest available phon value in fineGrainedISO226
+                const availablePhons = Object.keys(this.fineGrainedISO226).map(Number);
+                const nearestTargetPhon = availablePhons.reduce((prev, curr) => 
+                    Math.abs(curr - targetPhon) < Math.abs(prev - targetPhon) ? curr : prev
+                );
+                const nearestReferencePhon = availablePhons.reduce((prev, curr) => 
+                    Math.abs(curr - referencePhon) < Math.abs(prev - referencePhon) ? curr : prev
+                );
+                
+                const targetCurve = this.fineGrainedISO226[nearestTargetPhon];
+                const referenceCurve = this.fineGrainedISO226[nearestReferencePhon];
+                
+                if (!targetCurve || !referenceCurve) {
+                    console.error('Invalid phon values for ISO curves');
+                    return;
+                }
+                
+                // Calculate frequency-dependent gains from ISO 226
+                const targetGains = {};
+                const enhancementFactor = params.enhancement / 100;
+                
+                ISO_FREQ.forEach((freq, i) => {
+                    const targetSPL = targetCurve[i];
+                    const referenceSPL = referenceCurve[i];
+                    const gainDB = referenceSPL - targetSPL;
+                    
+                    // Apply 40% perceptual compensation
+                    let adjustedGain = gainDB * 0.4;
+                    
+                    // Additional bass/treble adjustments (only if enabled)
+                    if (this.extraBoostEnabled) {
+                        if (freq <= 200) {
+                            adjustedGain += params.bassBoost * enhancementFactor / 20;
+                        } else if (freq >= 4000) {
+                            adjustedGain += params.trebleBoost * enhancementFactor / 20;
+                        }
+                    }
+                    
+                    targetGains[freq] = Math.pow(10, adjustedGain / 20);
+                });
+                
+                const newCoeffs = this.designFIR(targetGains, this.audioContext.sampleRate, this.numTaps);
+                
+                // Store coefficients for the target filter path
+                if (filterPath === 'A') {
+                    this.firCoeffsA = newCoeffs;
+                } else {
+                    this.firCoeffsB = newCoeffs;
+                }
+                
+                // console.log(`Filter ${filterPath} coefficients generated`);
+            }
+            
+            // Filter-only crossfade (no volume change)
+            startFilterOnlyCrossfade(targetFilter) {
+                if (this.isCrossfading) {
+                    console.log('Already crossfading, skipping');
+                    return;
+                }
+                
+                console.log(`Starting filter-only crossfade from ${this.currentFilter} to ${targetFilter}`);
+                
+                this.isCrossfading = true;
+                this.crossfadeStartTime = Date.now();
+                this.nextFilter = targetFilter;
+                
+                let crossfadeProgress = 0;
+                const updateInterval = 50; // Update every 50ms
+                
+                // Clear any existing timer
+                if (this.crossfadeTimer) {
+                    clearInterval(this.crossfadeTimer);
+                }
+                
+                this.crossfadeTimer = setInterval(() => {
+                    const elapsed = Date.now() - this.crossfadeStartTime;
+                    crossfadeProgress = Math.min(1, elapsed / this.crossfadeTime);
+                    
+                    // Equal-power crossfade
+                    const fadeOut = Math.cos(crossfadeProgress * Math.PI / 2);
+                    const fadeIn = Math.sin(crossfadeProgress * Math.PI / 2);
+                    
+                    // Update filter mix only with smooth ramping
+                    const now = this.audioContext.currentTime;
+                    if (this.currentFilter === 'A') {
+                        this.wetGainA.gain.linearRampToValueAtTime(fadeOut, now + 0.05);
+                        this.wetGainB.gain.linearRampToValueAtTime(fadeIn, now + 0.05);
+                    } else {
+                        this.wetGainA.gain.linearRampToValueAtTime(fadeIn, now + 0.05);
+                        this.wetGainB.gain.linearRampToValueAtTime(fadeOut, now + 0.05);
+                    }
+                    
+                    // Update transition chart and status
+                    this.drawTransitionChart();
+                    document.getElementById('crossfadeStatus').textContent = 
+                        `Filter ${this.currentFilter}→${targetFilter} (${(crossfadeProgress * 100).toFixed(0)}%)`;
+                    
+                    if (crossfadeProgress >= 1) {
+                        // Crossfade complete
+                        clearInterval(this.crossfadeTimer);
+                        this.crossfadeTimer = null;
+                        this.currentFilter = targetFilter;
+                        this.nextFilter = this.currentFilter === 'A' ? 'B' : 'A';
+                        this.isCrossfading = false;
+                        
+                        console.log('Filter crossfade complete');
+                        document.getElementById('crossfadeStatus').textContent = 'Idle';
+                        this.updateFilterDisplays();
+                        this.drawTransitionChart();
+                    }
+                }, updateInterval);
+            }
+            
+            // Start smooth volume A/B transition
+            startVolumeTransition(targetGain) {
+                const targetNode = this.currentVolumeNode === 'A' ? 'B' : 'A';
+                const currentGainNode = this.currentVolumeNode === 'A' ? this.volumeGainA : this.volumeGainB;
+                const targetGainNode = targetNode === 'A' ? this.volumeGainA : this.volumeGainB;
+                
+                console.log(`Starting volume transition from ${this.currentVolumeNode} to ${targetNode}: ${(targetGain * 100).toFixed(1)}%`);
+                
+                // Get current values
+                const currentValue = currentGainNode.gain.value;
+                const now = this.audioContext.currentTime;
+                const transitionTime = 0.2; // Shorter transition for manual changes
+                
+                // Cancel any scheduled changes
+                currentGainNode.gain.cancelScheduledValues(now);
+                targetGainNode.gain.cancelScheduledValues(now);
+                
+                // Set current values to prevent jumps
+                currentGainNode.gain.setValueAtTime(currentValue, now);
+                targetGainNode.gain.setValueAtTime(targetGainNode.gain.value, now);
+                
+                // Crossfade
+                currentGainNode.gain.linearRampToValueAtTime(0, now + transitionTime);
+                targetGainNode.gain.linearRampToValueAtTime(targetGain, now + transitionTime);
+                
+                // Switch current node after transition
+                setTimeout(() => {
+                    this.currentVolumeNode = targetNode;
+                    console.log('Volume transition complete');
+                }, transitionTime * 1000);
+            }
+            
+            // Volume-only transition (no filter change) - for scheduled auto gain updates
+            startVolumeOnlyTransition() {
+                if (this.isCrossfading) {
+                    console.log('Already transitioning, skipping');
+                    return;
+                }
+                
+                console.log(`Starting scheduled volume transition: ${this.autoGain.toFixed(1)} dB → ${this.targetAutoGain.toFixed(1)} dB`);
+                
+                this.isCrossfading = true;
+                const startTime = Date.now();
+                const startGain = this.autoGain;
+                const targetGain = this.targetAutoGain;
+                
+                let transitionProgress = 0;
+                const updateInterval = 50; // Update every 50ms
+                
+                // Clear any existing timer
+                if (this.crossfadeTimer) {
+                    clearInterval(this.crossfadeTimer);
+                }
+                
+                this.crossfadeTimer = setInterval(() => {
+                    const elapsed = Date.now() - startTime;
+                    transitionProgress = Math.min(1, elapsed / this.crossfadeTime);
+                    
+                    // Smooth volume transition
+                    const smoothProgress = 0.5 - 0.5 * Math.cos(transitionProgress * Math.PI);
+                    this.autoGain = startGain + (targetGain - startGain) * smoothProgress;
+                    
+                    // Calculate new final gain for the transition
+                    const volumeSlider = document.getElementById('masterVolume');
+                    const volume = parseInt(volumeSlider.value) / 100;
+                    const effectiveTarget = this.targetPhon + this.autoGain;
+                    const requiredAttenuation = effectiveTarget - 85;
+                    const calibratedGain = Math.pow(10, requiredAttenuation / 20);
+                    const finalGain = volume * calibratedGain;
+                    
+                    // Use A/B transition for smooth volume change
+                    this.startVolumeTransition(finalGain);
+                    
+                    // Update UI
+                    this.updateEnvironmentUI();
+                    document.getElementById('crossfadeStatus').textContent = 
+                        `Volume ${this.currentVolumeNode}→${this.currentVolumeNode === 'A' ? 'B' : 'A'} (${(transitionProgress * 100).toFixed(0)}%)`;
+                    
+                    if (transitionProgress >= 1) {
+                        // Transition complete
+                        clearInterval(this.crossfadeTimer);
+                        this.crossfadeTimer = null;
+                        this.isCrossfading = false;
+                        this.autoGain = targetGain;
+                        
+                        console.log('Scheduled volume transition complete');
+                        document.getElementById('crossfadeStatus').textContent = 'Idle';
+                        this.updateFilterDisplays();
+                    }
+                }, updateInterval);
+            }
+            
+            startCrossfade(targetFilter) {
+                if (this.isCrossfading) {
+                    console.log('Already crossfading, ignoring new crossfade request');
+                    return;
+                }
+                
+                console.log(`=== STARTING CROSSFADE TO FILTER ${targetFilter} ===`);
+                
+                this.isCrossfading = true;
+                this.crossfadeStartTime = Date.now();
+                this.nextFilter = targetFilter;
+                
+                // Update the inactive filter with new coefficients
+                const filterBuffer = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                if (targetFilter === 'A') {
+                    filterBuffer.copyToChannel(this.firCoeffsA, 0);
+                    this.firFilterA.buffer = filterBuffer;
+                } else {
+                    filterBuffer.copyToChannel(this.firCoeffsB, 0);
+                    this.firFilterB.buffer = filterBuffer;
+                }
+                
+                // Start crossfade timer (updates every 100ms for smooth transition)
+                this.crossfadeTimer = setInterval(() => {
+                    this.updateCrossfade();
+                }, 100);
+                
+                // Update UI with filter parameters
+                const effectiveTargetPhon = Math.round(this.targetPhon + (this.targetAutoGain || 0));
+                const bassGain = (this.bassAdaptation * (this.quietEnhancement / 100)).toFixed(1);
+                const trebleGain = (this.trebleClarity * (this.quietEnhancement / 100)).toFixed(1);
+                document.getElementById('firStatus').textContent = `Crossfading to ${effectiveTargetPhon}→${this.referencePhon} phon`;
+            }
+            
+            updateCrossfade() {
+                const elapsed = Date.now() - this.crossfadeStartTime;
+                const progress = Math.min(elapsed / this.crossfadeTime, 1.0);
+                
+                // Equal-power crossfade curve
+                const angle = progress * Math.PI / 2;
+                const fadeOut = Math.cos(angle); // Current filter fades out
+                const fadeIn = Math.sin(angle);  // New filter fades in
+                
+                if (this.currentFilter === 'A') {
+                    // Crossfading from A to B
+                    this.wetGainA.gain.linearRampToValueAtTime(fadeOut, this.audioContext.currentTime + 0.1);
+                    this.wetGainB.gain.linearRampToValueAtTime(fadeIn, this.audioContext.currentTime + 0.1);
+                } else {
+                    // Crossfading from B to A
+                    this.wetGainA.gain.linearRampToValueAtTime(fadeIn, this.audioContext.currentTime + 0.1);
+                    this.wetGainB.gain.linearRampToValueAtTime(fadeOut, this.audioContext.currentTime + 0.1);
+                }
+                
+                // Apply auto gain transition during crossfade
+                if (this.targetAutoGain !== undefined) {
+                    const currentAutoGain = this.autoGain + (this.targetAutoGain - this.autoGain) * progress;
+                    
+                    // Update effective auto gain for master volume calculation
+                    const tempAutoGain = this.autoGain;
+                    this.autoGain = currentAutoGain;
+                    this.updateMasterVolume();
+                    this.autoGain = tempAutoGain; // Restore for next calculation
+                }
+                
+                // console.log(`Crossfade progress: ${(progress * 100).toFixed(1)}% - A: ${this.currentFilter === 'A' ? fadeOut.toFixed(3) : fadeIn.toFixed(3)}, B: ${this.currentFilter === 'B' ? fadeOut.toFixed(3) : fadeIn.toFixed(3)}`);
+                
+                // Check if crossfade is complete
+                if (progress >= 1.0) {
+                    this.completeCrossfade();
+                }
+            }
+            
+            completeCrossfade() {
+                console.log(`=== CROSSFADE COMPLETE - NOW USING FILTER ${this.nextFilter} ===`);
+                
+                // Apply final auto gain if there was a transition
+                if (this.targetAutoGain !== undefined) {
+                    this.autoGain = this.targetAutoGain;
+                    this.targetAutoGain = undefined;
+                    this.updateMasterVolume();
+                    console.log(`Final auto gain applied: ${this.autoGain.toFixed(1)} dB`);
+                }
+                
+                // Switch current filter
+                this.currentFilter = this.nextFilter;
+                this.nextFilter = this.currentFilter === 'A' ? 'B' : 'A';
+                
+                // Stop crossfade timer
+                if (this.crossfadeTimer) {
+                    clearInterval(this.crossfadeTimer);
+                    this.crossfadeTimer = null;
+                }
+                
+                this.isCrossfading = false;
+                
+                // Update UI with current filter parameters
+                const effectiveTargetPhon = Math.round(this.targetPhon + this.autoGain);
+                const bassGain = (this.bassAdaptation * (this.quietEnhancement / 100)).toFixed(1);
+                const trebleGain = (this.trebleClarity * (this.quietEnhancement / 100)).toFixed(1);
+                document.getElementById('firStatus').textContent = `${effectiveTargetPhon}→${this.referencePhon} phon, Bass +${bassGain}dB, Treble +${trebleGain}dB`;
+                
+                // Update filter delay display
+                const delay = ((this.numTaps - 1) / 2) / this.audioContext.sampleRate * 1000;
+                document.getElementById('filterDelay').textContent = `${delay.toFixed(1)} ms`;
+                
+                // Update filter displays
+                this.updateFilterDisplays();
+            }
+            
+            async updateFIRFilter() {
+                // This method is now used for manual updates only
+                if (!this.audioContext) return;
+                
+                // Skip if filters haven't been created yet
+                if (!this.firFilterA || !this.firFilterB) {
+                    console.log('FIR filters not yet created, skipping update');
+                    return;
+                }
+                
+                try {
+                    console.log('Manual FIR filter update requested - preparing for next transition');
+                    
+                    // Generate new coefficients for the INACTIVE filter
+                    const newCoeffs = this.generateAdaptiveLoudnessFilter();
+                    const targetFilter = this.currentFilter === 'A' ? 'B' : 'A';
+                    
+                    // Store coefficients for the inactive filter
+                    if (targetFilter === 'A') {
+                        this.firCoeffsA = newCoeffs;
+                    } else {
+                        this.firCoeffsB = newCoeffs;
+                    }
+                    
+                    // If not in adaptive mode, start manual crossfade immediately
+                    if (!this.adaptiveMode && !this.isCrossfading) {
+                        console.log('Starting manual crossfade to updated filter');
+                        
+                        // Create buffer for the target filter
+                        const filterBuffer = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                        filterBuffer.copyToChannel(newCoeffs, 0);
+                        
+                        if (targetFilter === 'A') {
+                            this.firFilterA.buffer = filterBuffer;
+                        } else {
+                            this.firFilterB.buffer = filterBuffer;
+                        }
+                        
+                        // Start smooth crossfade
+                        this.startFilterOnlyCrossfade(targetFilter);
+                    } else {
+                        // console.log('Filter coefficients prepared for next scheduled update');
+                    }
+                    
+                    // Update UI with detailed parameters
+                    const currentPhon = Math.round(this.targetPhon + this.autoGain);
+                    const bassGain = (this.bassAdaptation * (this.quietEnhancement / 100)).toFixed(1);
+                    const trebleGain = (this.trebleClarity * (this.quietEnhancement / 100)).toFixed(1);
+                    // Update filter status display
+                    document.getElementById('firStatus').textContent = `${currentPhon}→${this.referencePhon} phon, Bass +${bassGain}dB, Treble +${trebleGain}dB`;
+                    
+                    // Update effective target
+                    document.getElementById('effectiveTarget').textContent = `${currentPhon} phon`;
+                    
+                    console.log('Filter update prepared, auto-gain:', this.autoGain.toFixed(1), 'dB');
+                } catch (error) {
+                    console.error('Error updating FIR filter:', error);
+                }
+            }
+            
+            updateEnvironmentUI() {
+                // Update noise meter
+                const meterFill = document.getElementById('noiseMeter');
+                const percentage = (this.noiseLevel / 100) * 100;
+                meterFill.style.width = `${percentage}%`;
+                
+                // Update noise level display
+                document.getElementById('noiseLevel').textContent = `${this.noiseLevel.toFixed(1)} dB`;
+                document.getElementById('autoGain').textContent = `${this.autoGain.toFixed(1)} dB`;
+                
+                // Calculate effective target music level (actual output with auto gain)
+                const effectiveTargetLevel = Math.round(this.targetPhon + this.autoGain);
+                document.getElementById('effectiveTarget').textContent = `${effectiveTargetLevel} dB SPL`;
+                
+                // Update slider position to show effective target
+                const targetSlider = document.getElementById('targetPhon');
+                // Visual indication with gradient background (don't change actual value)
+                const effectivePosition = Math.max(0, Math.min(100, ((effectiveTargetLevel - 20) / 60 * 100)));
+                targetSlider.style.background = `linear-gradient(to right, 
+                    var(--accent-color) 0%, 
+                    var(--accent-color) ${effectivePosition}%, 
+                    var(--bg-tertiary) ${effectivePosition}%, 
+                    var(--bg-tertiary) 100%)`;
+                
+                // Update display to show both original and effective values
+                if (this.autoGain !== 0) {
+                    document.getElementById('phonValue').innerHTML = 
+                        `${this.targetPhon} phon <span style="color: var(--accent-hover);">(→ ${effectiveTargetLevel} dB)</span>`;
+                } else {
+                    document.getElementById('phonValue').textContent = `${this.targetPhon} phon`;
+                }
+                
+                // Update filter display in FIR status
+                const filterInfo = `${effectiveTargetLevel} → ${this.referencePhon} phon`;
+                if (document.getElementById('firStatus').textContent !== 'Ready' && 
+                    !document.getElementById('firStatus').textContent.includes('Crossfading')) {
+                    document.getElementById('firStatus').textContent = filterInfo;
+                }
+                
+                // Remove per-frame noise logging to reduce console spam
+                
+                // Update noise chart
+                this.updateNoiseChart();
+            }
+            
+            async loadAudio(file, isFromPlaylist = false) {
+                console.log('Loading audio file:', file.name);
+                await this.init();
+                
+                try {
+                    // Reuse existing audio element if we have one
+                    if (!this.audioElement) {
+                        this.audioElement = new Audio();
+                        this.audioElement.crossOrigin = 'anonymous';
+                        
+                        // Set up ended event for playlist mode (only once)
+                        this.audioElement.addEventListener('ended', () => {
+                            if (this.isPlaylistMode) {
+                                this.handleTrackEnded();
+                            }
+                        });
+                    }
+                    
+                    // Update the source
+                    this.audioElement.src = URL.createObjectURL(file);
+                    
+                    // Wait for metadata to load
+                    await new Promise((resolve, reject) => {
+                        this.audioElement.addEventListener('loadedmetadata', resolve, { once: true });
+                        this.audioElement.addEventListener('error', reject, { once: true });
+                        this.audioElement.load();
+                    });
+                    
+                    console.log('Audio file loaded successfully');
+                    // console.log('Duration:', this.audioElement.duration, 'seconds');
+                    
+                    // Update current file
+                    this.currentFile = file;
+                    
+                    // Update UI if from playlist
+                    if (isFromPlaylist) {
+                        this.updatePlaylistUI();
+                    }
+                } catch (error) {
+                    console.error('Error loading audio:', error);
+                    alert('Error loading audio file: ' + error.message);
+                }
+            }
+            
+            createAudioGraph() {
+                if (!this.audioElement) return;
+                
+                console.log('Creating/updating audio graph for new track...');
+                // console.log('Audio element state:', this.audioElement.readyState);
+                // console.log('Audio context state:', this.audioContext.state);
+                
+                // Check if we need to create the DSP chain
+                const needsInitialSetup = !this.wetGainA || !this.wetGainB;
+                
+                // Create source from audio element
+                try {
+                    // Only create source if it doesn't exist
+                    if (!this.source) {
+                        this.source = this.audioContext.createMediaElementSource(this.audioElement);
+                        // console.log('Media source created successfully');
+                    } else {
+                        console.log('Reusing existing media source');
+                    }
+                } catch (error) {
+                    console.error('Error creating media source:', error);
+                    return;
+                }
+                
+                // Only create nodes if this is the first setup
+                if (needsInitialSetup) {
+                    // Create processing nodes
+                    this.dryGain = this.audioContext.createGain();
+                    this.wetGainA = this.audioContext.createGain();
+                    this.wetGainB = this.audioContext.createGain();
+                    this.masterGain = this.audioContext.createGain();
+                    this.compensationGain = this.audioContext.createGain();
+                    
+                    // Create volume A/B nodes for smooth volume transitions
+                    this.volumeGainA = this.audioContext.createGain();
+                    this.volumeGainB = this.audioContext.createGain();
+                    this.volumeGainA.gain.value = 1.0;
+                    this.volumeGainB.gain.value = 0.0;
+                    
+                    // Create dual FIR filters (convolvers)
+                    this.firFilterA = this.audioContext.createConvolver();
+                    this.firFilterA.normalize = false;
+                    this.firFilterB = this.audioContext.createConvolver();
+                    this.firFilterB.normalize = false;
+                    
+                    // Generate initial FIR filters - use same coefficients for both
+                    const initialCoeffs = this.generateAdaptiveLoudnessFilter();
+                    this.firCoeffsA = new Float32Array(initialCoeffs);
+                    this.firCoeffsB = new Float32Array(initialCoeffs); // Exact copy
+                    
+                    const filterBufferA = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                    filterBufferA.copyToChannel(this.firCoeffsA, 0);
+                    this.firFilterA.buffer = filterBufferA;
+                    
+                    const filterBufferB = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                    filterBufferB.copyToChannel(this.firCoeffsB, 0);
+                    this.firFilterB.buffer = filterBufferB;
+                    
+                    console.log('Initial FIR filters created with identical coefficients for both chains');
+                
+                    // Connect audio graph
+                    // Dry path: source -> dryGain -> compensationGain
+                    this.source.connect(this.dryGain);
+                    this.dryGain.connect(this.compensationGain);
+                    
+                    // Wet path A: source -> firFilterA -> wetGainA -> compensationGain
+                    this.source.connect(this.firFilterA);
+                    this.firFilterA.connect(this.wetGainA);
+                    this.wetGainA.connect(this.compensationGain);
+                    
+                    // Wet path B: source -> firFilterB -> wetGainB -> compensationGain
+                    this.source.connect(this.firFilterB);
+                    this.firFilterB.connect(this.wetGainB);
+                    this.wetGainB.connect(this.compensationGain);
+                    
+                    // Output through volume A/B system
+                    // compensationGain -> volumeGainA -> masterGain -> destination
+                    //                  -> volumeGainB -> 
+                    this.compensationGain.connect(this.volumeGainA);
+                    this.compensationGain.connect(this.volumeGainB);
+                    this.volumeGainA.connect(this.masterGain);
+                    this.volumeGainB.connect(this.masterGain);
+                    this.masterGain.connect(this.audioContext.destination);
+                    
+                    // Set initial gains
+                    this.dryGain.gain.value = 0.2; // Reduce dry signal
+                    this.wetGainA.gain.value = 1.0; // Full gain for Filter A
+                    this.wetGainB.gain.value = 0.0; // Filter B starts silent
+                    this.compensationGain.gain.value = 1.0; // No additional attenuation
+                    this.masterGain.gain.value = 1.0; // Master stays at 1.0, volume control via A/B nodes
+                    
+                    // Initialize master volume immediately
+                    setTimeout(() => {
+                        this.updateMasterVolume();
+                    }, 100); // Small delay to ensure all nodes are ready
+                    
+                    console.log('Dual-filter adaptive audio graph created');
+                    // console.log('Master gain value:', this.masterGain.gain.value);
+                    // console.log('Compensation gain value:', this.compensationGain.gain.value);
+                } else {
+                // For subsequent tracks, just reconnect the source
+                console.log('Reconnecting source to existing audio graph');
+                
+                // Disconnect any existing connections from source
+                try {
+                    this.source.disconnect();
+                } catch (e) {
+                    // Source might not be connected
+                }
+                
+                // Reconnect source to existing graph
+                this.source.connect(this.dryGain);
+                this.source.connect(this.firFilterA);
+                this.source.connect(this.firFilterB);
+                
+                console.log('Source reconnected, preserving filter and gain settings');
+            }
+                
+            // Start adaptive filter system
+            this.startAdaptiveFilterSystem();
+        }
+        
+        updateMasterVolume() {
+            if (!this.masterGain || !this.volumeGainA || !this.volumeGainB) {
+                console.log('Volume nodes not ready');
+                return;
+            }
+            
+            const volumeSlider = document.getElementById('masterVolume');
+            const volume = parseInt(volumeSlider.value) / 100;
+            console.log('Updating master volume to:', (volume * 100).toFixed(0) + '%');
+            
+            // Simplified calibration: assume target phon ≈ target dB SPL
+            // This is approximately true for 1kHz and reasonable for music
+            const effectiveTarget = this.targetPhon + this.autoGain;
+            const requiredAttenuation = effectiveTarget - 85; // From 85 dB calibration
+            const calibratedGain = Math.pow(10, requiredAttenuation / 20);
+            
+            // Apply both user volume control and calibration attenuation
+            const finalGain = volume * calibratedGain;
+            this.targetVolumeValue = finalGain;
+            
+            // Use A/B transition for smooth volume change (prevents clicks)
+            this.startVolumeTransition(finalGain);
+            
+            // Calculate actual output SPL
+            const actualSPL = 85 + requiredAttenuation + 20 * Math.log10(volume);
+            console.log(`=== MASTER VOLUME UPDATE ===`);
+            console.log(`Target: ${this.targetPhon} phon, AutoGain: ${this.autoGain.toFixed(1)} dB`);
+            console.log(`Effective Target: ${effectiveTarget} dB SPL`);
+            console.log(`Calibration: 85 dB SPL @ 0dBFS`);
+            console.log(`Required attenuation: ${requiredAttenuation.toFixed(1)} dB`);
+            console.log(`Master volume: ${(volume * 100).toFixed(0)}%`);
+            console.log(`Final gain: ${finalGain.toFixed(4)} (${20 * Math.log10(finalGain).toFixed(1)} dB)`);
+            console.log(`Expected output: ${actualSPL.toFixed(1)} dB SPL`);
+            
+            // Calculate complete audio chain gain
+            // this.calculateAudioChainGain(); // Commented out - causes audio interruption
+        }
+        
+        calculateAudioChainGain() {
+            console.log(`\n=== COMPLETE AUDIO CHAIN GAIN ANALYSIS ===`);
+            
+            // Get all gain values
+            const dryGainValue = this.dryGain ? this.dryGain.gain.value : 0;
+            const wetGainAValue = this.wetGainA ? this.wetGainA.gain.value : 0;
+            const wetGainBValue = this.wetGainB ? this.wetGainB.gain.value : 0;
+            const compensationGainValue = this.compensationGain ? this.compensationGain.gain.value : 1;
+            const masterGainValue = this.masterGain ? this.masterGain.gain.value : 1;
+            
+            // Convert to dB
+            const dryGainDB = 20 * Math.log10(Math.max(0.0001, dryGainValue));
+            const wetGainADB = 20 * Math.log10(Math.max(0.0001, wetGainAValue));
+            const wetGainBDB = 20 * Math.log10(Math.max(0.0001, wetGainBValue));
+            const compensationGainDB = 20 * Math.log10(compensationGainValue);
+            const masterGainDB = 20 * Math.log10(masterGainValue);
+            
+            // FIR filter analysis at 1kHz
+            let firGainDB = 0;
+            if (this.audioContext && this.firCoeffsA && this.currentFilter === 'A') {
+                const omega1k = 2 * Math.PI * 1000 / this.audioContext.sampleRate;
+                let gain1k = 0;
+                const M = (this.numTaps - 1) / 2;
+                for (let n = 0; n < this.numTaps; n++) {
+                    gain1k += this.firCoeffsA[n] * Math.cos(omega1k * (n - M));
+                }
+                firGainDB = 20 * Math.log10(Math.abs(gain1k));
+            }
+            
+            // Calculate total wet path gain
+            const activeWetGainDB = this.currentFilter === 'A' ? wetGainADB : wetGainBDB;
+            const wetPathTotalDB = activeWetGainDB + firGainDB + compensationGainDB + masterGainDB;
+            const dryPathTotalDB = dryGainDB + compensationGainDB + masterGainDB;
+            
+            // Equal-power mix calculation
+            const wetLinear = this.currentFilter === 'A' ? wetGainAValue : wetGainBValue;
+            const dryLinear = dryGainValue;
+            const mixedPower = Math.sqrt(wetLinear * wetLinear + dryLinear * dryLinear);
+            const mixedDB = 20 * Math.log10(mixedPower);
+            
+            console.log(`\n1. Individual Gain Stages:`);
+            console.log(`   - Dry Gain: ${dryGainDB.toFixed(1)} dB (${(dryGainValue * 100).toFixed(0)}%)`);
+            console.log(`   - Wet Gain A: ${wetGainADB.toFixed(1)} dB (${(wetGainAValue * 100).toFixed(0)}%)`);
+            console.log(`   - Wet Gain B: ${wetGainBDB.toFixed(1)} dB (${(wetGainBValue * 100).toFixed(0)}%)`);
+            console.log(`   - FIR Filter @ 1kHz: ${firGainDB.toFixed(1)} dB`);
+            console.log(`   - Compensation Gain: ${compensationGainDB.toFixed(1)} dB`);
+            console.log(`   - Master Gain: ${masterGainDB.toFixed(1)} dB`);
+            
+            console.log(`\n2. Signal Path Analysis:`);
+            console.log(`   - Dry Path Total: ${dryPathTotalDB.toFixed(1)} dB`);
+            console.log(`   - Wet Path Total: ${wetPathTotalDB.toFixed(1)} dB`);
+            console.log(`   - Mixed Signal (equal-power): ${mixedDB.toFixed(1)} dB`);
+            
+            console.log(`\n3. Headroom Analysis:`);
+            const totalGainDB = compensationGainDB + masterGainDB + mixedDB;
+            const headroomDB = -totalGainDB; // Positive means we have headroom
+            console.log(`   - Total System Gain: ${totalGainDB.toFixed(1)} dB`);
+            console.log(`   - Available Headroom: ${headroomDB.toFixed(1)} dB`);
+            
+            if (headroomDB < 3) {
+                console.log(`   ⚠️ WARNING: Low headroom! Risk of clipping.`);
+            } else {
+                console.log(`   ✓ Adequate headroom for clean playback.`);
+            }
+            
+            console.log(`==========================================\n`);
+            }
+            
+            async play() {
+                if (!this.audioElement) {
+                    alert('Please load an audio file first');
+                    return;
+                }
+                
+                if (this.isPlaying) {
+                    this.audioElement.pause();
+                    this.isPlaying = false;
+                    document.getElementById('playBtn').textContent = '▶️ Play';
+                } else {
+                    if (!this.source) {
+                        this.createAudioGraph();
+                    }
+                    
+                    try {
+                        await this.audioElement.play();
+                        this.isPlaying = true;
+                        document.getElementById('playBtn').textContent = '⏸ Pause';
+                        console.log('Playback started');
+                        // console.log('Audio playing:', !this.audioElement.paused);
+                        // console.log('Audio volume:', this.audioElement.volume);
+                    } catch (error) {
+                        console.error('Error starting playback:', error);
+                        alert('Error playing audio: ' + error.message);
+                    }
+                }
+            }
+            
+            stop() {
+                if (this.audioElement) {
+                    this.audioElement.pause();
+                    this.audioElement.currentTime = 0;
+                }
+                this.isPlaying = false;
+                
+                // Don't disconnect or null the source - we'll reuse it
+                // This preserves the audio chain between tracks
+                
+                document.getElementById('playBtn').textContent = '▶️ Play';
+            }
+            
+            initializeCharts() {
+                // Initialize noise chart
+                const noiseCanvas = document.getElementById('noiseChart');
+                this.noiseCtx = noiseCanvas.getContext('2d');
+                
+                // Initialize response chart
+                const responseCanvas = document.getElementById('responseChart');
+                this.responseCtx = responseCanvas.getContext('2d');
+                
+                // Initialize transition chart
+                const transitionCanvas = document.getElementById('transitionChart');
+                this.transitionCtx = transitionCanvas.getContext('2d');
+                
+                this.drawResponseChart();
+                this.drawTransitionChart();
+            }
+            
+            updateNoiseChart() {
+                const canvas = document.getElementById('noiseChart');
+                const ctx = this.noiseCtx;
+                
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (this.noiseHistory.length < 2) return;
+                
+                // Draw noise history
+                ctx.strokeStyle = '#00D4D4';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                for (let i = 0; i < this.noiseHistory.length; i++) {
+                    const x = (i / (this.noiseHistory.length - 1)) * canvas.width;
+                    const y = canvas.height - (this.noiseHistory[i] / 100) * canvas.height;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+                
+                // Draw manual threshold line
+                const manualThresholdY = canvas.height - (this.manualThreshold / 100) * canvas.height;
+                ctx.strokeStyle = '#FFA500';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(0, manualThresholdY);
+                ctx.lineTo(canvas.width, manualThresholdY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            
+            drawTransitionChart() {
+                const canvas = document.getElementById('transitionChart');
+                if (!canvas) return;
+                
+                const ctx = this.transitionCtx;
+                
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const width = canvas.width;
+                const height = canvas.height;
+                const padding = 20;
+                const chainHeight = 45;
+                const gap = 10;
+                
+                // Get current states
+                const filterA = this.wetGainA ? this.wetGainA.gain.value : 0;
+                const filterB = this.wetGainB ? this.wetGainB.gain.value : 0;
+                const volumeA = this.volumeGainA ? this.volumeGainA.gain.value : 0;
+                const volumeB = this.volumeGainB ? this.volumeGainB.gain.value : 0;
+                
+                // Calculate chain strengths
+                const chainAStrength = filterA * volumeA;
+                const chainBStrength = filterB * volumeB;
+                
+                // Draw Audio Chain A
+                const chainAY = 10;
+                ctx.fillStyle = chainAStrength > 0.5 ? 'rgba(255, 107, 107, 0.15)' : 'rgba(255, 107, 107, 0.05)';
+                ctx.fillRect(padding, chainAY, width - 2 * padding, chainHeight);
+                
+                // Chain A components
+                const componentWidth = (width - 2 * padding - gap * 2) / 3;
+                let xPos = padding;
+                
+                // Filter A
+                ctx.fillStyle = filterA > 0.5 ? 'rgba(255, 107, 107, 0.8)' : 'rgba(255, 107, 107, 0.3)';
+                ctx.fillRect(xPos, chainAY + 5, componentWidth, chainHeight - 10);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Filter ${(filterA * 100).toFixed(0)}%`, xPos + componentWidth/2, chainAY + chainHeight/2 + 3);
+                
+                // Arrow
+                xPos += componentWidth;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.beginPath();
+                ctx.moveTo(xPos + 5, chainAY + chainHeight/2);
+                ctx.lineTo(xPos + gap - 5, chainAY + chainHeight/2);
+                ctx.stroke();
+                
+                // Volume A
+                xPos += gap;
+                ctx.fillStyle = volumeA > 0.5 ? 'rgba(255, 200, 0, 0.8)' : 'rgba(255, 200, 0, 0.3)';
+                ctx.fillRect(xPos, chainAY + 5, componentWidth, chainHeight - 10);
+                ctx.fillText(`Volume ${(volumeA * 100).toFixed(0)}%`, xPos + componentWidth/2, chainAY + chainHeight/2 + 3);
+                
+                // Arrow
+                xPos += componentWidth;
+                ctx.beginPath();
+                ctx.moveTo(xPos + 5, chainAY + chainHeight/2);
+                ctx.lineTo(xPos + gap - 5, chainAY + chainHeight/2);
+                ctx.stroke();
+                
+                // Output A
+                xPos += gap;
+                const outputAOpacity = chainAStrength > 0.5 ? '0.8' : '0.3';
+                ctx.fillStyle = `rgba(255, 255, 255, ${outputAOpacity})`;
+                ctx.fillRect(xPos, chainAY + 5, componentWidth, chainHeight - 10);
+                ctx.fillStyle = chainAStrength > 0.5 ? '#000000' : '#ffffff';
+                ctx.fillText('Audio Chain A', xPos + componentWidth/2, chainAY + chainHeight/2 + 3);
+                
+                // Draw Audio Chain B
+                const chainBY = chainAY + chainHeight + gap;
+                ctx.fillStyle = chainBStrength > 0.5 ? 'rgba(0, 212, 212, 0.15)' : 'rgba(0, 212, 212, 0.05)';
+                ctx.fillRect(padding, chainBY, width - 2 * padding, chainHeight);
+                
+                // Chain B components
+                xPos = padding;
+                
+                // Filter B
+                ctx.fillStyle = filterB > 0.5 ? 'rgba(0, 212, 212, 0.8)' : 'rgba(0, 212, 212, 0.3)';
+                ctx.fillRect(xPos, chainBY + 5, componentWidth, chainHeight - 10);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(`Filter ${(filterB * 100).toFixed(0)}%`, xPos + componentWidth/2, chainBY + chainHeight/2 + 3);
+                
+                // Arrow
+                xPos += componentWidth;
+                ctx.beginPath();
+                ctx.moveTo(xPos + 5, chainBY + chainHeight/2);
+                ctx.lineTo(xPos + gap - 5, chainBY + chainHeight/2);
+                ctx.stroke();
+                
+                // Volume B
+                xPos += gap;
+                ctx.fillStyle = volumeB > 0.5 ? 'rgba(100, 255, 100, 0.8)' : 'rgba(100, 255, 100, 0.3)';
+                ctx.fillRect(xPos, chainBY + 5, componentWidth, chainHeight - 10);
+                ctx.fillText(`Volume ${(volumeB * 100).toFixed(0)}%`, xPos + componentWidth/2, chainBY + chainHeight/2 + 3);
+                
+                // Arrow
+                xPos += componentWidth;
+                ctx.beginPath();
+                ctx.moveTo(xPos + 5, chainBY + chainHeight/2);
+                ctx.lineTo(xPos + gap - 5, chainBY + chainHeight/2);
+                ctx.stroke();
+                
+                // Output B
+                xPos += gap;
+                const outputBOpacity = chainBStrength > 0.5 ? '0.8' : '0.3';
+                ctx.fillStyle = `rgba(255, 255, 255, ${outputBOpacity})`;
+                ctx.fillRect(xPos, chainBY + 5, componentWidth, chainHeight - 10);
+                ctx.fillStyle = chainBStrength > 0.5 ? '#000000' : '#ffffff';
+                ctx.fillText('Audio Chain B', xPos + componentWidth/2, chainBY + chainHeight/2 + 3);
+                
+                // Status text
+                ctx.textAlign = 'left';
+                ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                
+                // Show transition progress if active
+                if (this.isCrossfading && this.crossfadeStartTime) {
+                    const progress = Math.min(1, (Date.now() - this.crossfadeStartTime) / this.crossfadeTime);
+                    const progressPercent = (progress * 100).toFixed(0);
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+                    ctx.fillText(`● Transitioning ${this.updateMode}: ${progressPercent}%`, padding, height - 5);
+                } else {
+                    ctx.fillText(`Next update: ${this.updateMode || 'filter'}`, padding, height - 5);
+                }
+                
+                // Auto gain display
+                ctx.textAlign = 'right';
+                ctx.fillText(`Auto Gain: ${this.autoGain ? this.autoGain.toFixed(1) : '0.0'} dB`, width - padding, height - 5);
+            }
+            
+            drawResponseChart() {
+                const canvas = document.getElementById('responseChart');
+                const ctx = this.responseCtx;
+                
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw frequency response simulation
+                ctx.strokeStyle = '#00D4D4';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                for (let i = 0; i <= 100; i++) {
+                    const freq = 20 * Math.pow(1000, i / 100); // 20Hz to 20kHz log scale
+                    const x = (i / 100) * canvas.width;
+                    
+                    // Simulate adaptive response based on current settings
+                    let gain = 0;
+                    if (freq < 200) {
+                        gain = this.bassAdaptation * (this.quietEnhancement / 100);
+                    } else if (freq > 2000) {
+                        gain = this.trebleClarity * (this.quietEnhancement / 100);
+                    }
+                    
+                    const y = canvas.height / 2 - (gain * canvas.height / 40); // Scale for ±20dB
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+                
+                // Draw 0dB line
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height / 2);
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                ctx.stroke();
+            }
+            
+            updateFilterDisplays() {
+                // Calculate current parameters
+                const currentPhon = Math.round(this.targetPhon + this.autoGain);
+                const bassGain = (this.bassAdaptation * (this.quietEnhancement / 100)).toFixed(1);
+                
+                // Get filter and volume states
+                const filterAActive = this.currentFilter === 'A' ? '●' : '○';
+                const filterBActive = this.currentFilter === 'B' ? '●' : '○';
+                const volumeAActive = this.currentVolumeNode === 'A' ? '●' : '○';
+                const volumeBActive = this.currentVolumeNode === 'B' ? '●' : '○';
+                
+                // Get current gain values
+                const volumeA = this.volumeGainA ? (this.volumeGainA.gain.value * 100).toFixed(0) : '0';
+                const volumeB = this.volumeGainB ? (this.volumeGainB.gain.value * 100).toFixed(0) : '0';
+                
+                // Update displays with current active states
+                const chainAFilter = filterAActive === '●' ? `${currentPhon}→${this.referencePhon} phon` : 'Standby';
+                const chainBFilter = filterBActive === '●' ? `${currentPhon}→${this.referencePhon} phon` : 'Standby';
+                
+                // Add transition status
+                const transitionStatus = this.isCrossfading ? ' (Transitioning...)' : '';
+                
+                document.getElementById('activeFilterDisplay').textContent = 
+                    `Filter ${filterAActive} [${chainAFilter}], Volume ${volumeAActive} [${volumeA}%]${filterAActive === '●' || volumeAActive === '●' ? transitionStatus : ''}`;
+                    
+                document.getElementById('inactiveFilterDisplay').textContent = 
+                    `Filter ${filterBActive} [${chainBFilter}], Volume ${volumeBActive} [${volumeB}%]${filterBActive === '●' || volumeBActive === '●' ? transitionStatus : ''}`;
+                
+                // Update transition chart
+                this.drawTransitionChart();
+            }
+            
+            // Auto Loudness EQ - Calculate optimal reference phon
+            calculateOptimalReference(targetPhon) {
+                const Lmin = 40;      // Minimum SPL
+                const deltaMin = 1;   // Minimum phon gap
+                const L = targetPhon;
+                
+                let adaptiveK, adaptiveDeltaMax;
+                
+                if (this.manualBassMode) {
+                    // Use manual K and deltaMax values
+                    adaptiveK = this.kParameter;
+                    adaptiveDeltaMax = this.deltaMax;
+                } else {
+                    // Adaptive parameters based on target phon
+                    if (L < 55) {
+                        adaptiveK = 18;
+                        adaptiveDeltaMax = 20;
+                    } else if (L < 60) {
+                        adaptiveK = 18;
+                        adaptiveDeltaMax = 16;
+                    } else if (L < 65) {
+                        adaptiveK = 26;
+                        adaptiveDeltaMax = 8;
+                    } else if (L < 70) {
+                        adaptiveK = 30;
+                        adaptiveDeltaMax = 6;
+                    } else if (L < 80) {
+                        adaptiveK = 35;
+                        adaptiveDeltaMax = 4;
+                    } else {
+                        adaptiveK = 40;
+                        adaptiveDeltaMax = 3;
+                    }
+                }
+                
+                // Calculate gap using exponential formula
+                const gapRaw = deltaMin + (adaptiveDeltaMax - deltaMin) * Math.exp(-(L - Lmin) / adaptiveK);
+                
+                // Smooth fade-out for high SPL (80-85 phon)
+                let fadeScale = 1;
+                if (L >= 80) {
+                    fadeScale = Math.max(0, 1 - (L - 80) / 5);
+                }
+                
+                const gap = gapRaw * fadeScale;
+                const referencePhon = L + gap;
+                
+                console.log(`[Auto Loudness] Target: ${L.toFixed(1)} phon, k: ${adaptiveK}, deltaMax: ${adaptiveDeltaMax}, gap: ${gap.toFixed(1)}, reference: ${referencePhon.toFixed(1)} phon`);
+                
+                return {
+                    referencePhon: Math.round(referencePhon),
+                    gap: gap,
+                    k: adaptiveK,
+                    deltaMax: adaptiveDeltaMax
+                };
+            }
+            
+            // Update Auto Loudness - automatically adjust reference phon based on target
+            updateAutoLoudness() {
+                if (!this.autoLoudnessEnabled) return;
+                
+                // Calculate optimal reference based on current target phon
+                const result = this.calculateOptimalReference(this.targetPhon);
+                
+                // Update reference phon
+                this.referencePhon = result.referencePhon;
+                
+                // Update UI slider and display
+                const referenceSlider = document.getElementById('referencePhon');
+                const referenceDisplay = document.getElementById('referencePhonValue');
+                
+                referenceSlider.value = this.referencePhon;
+                referenceDisplay.textContent = this.referencePhon + ' phon';
+                
+                // Show the calculated gap in the display
+                const filterConfig = document.getElementById('filterConfig');
+                if (filterConfig) {
+                    filterConfig.textContent = `${this.targetPhon} → ${this.referencePhon} phon (Auto: gap ${result.gap.toFixed(1)} dB)`;
+                }
+                
+                console.log(`[Auto Loudness] Updated reference to ${this.referencePhon} phon (gap: ${result.gap.toFixed(1)} dB, k: ${result.k}, deltaMax: ${result.deltaMax})`);
+                
+                // Update FIR filter with new reference
+                this.updateFIRFilter();
+                this.drawResponseChart();
+            }
+            
+            // Playlist methods
+            loadPlaylist(files) {
+                this.playlist = Array.from(files);
+                this.isPlaylistMode = true;
+                this.currentTrackIndex = 0;
+                
+                // Show playlist container
+                document.getElementById('playlistContainer').style.display = 'block';
+                
+                // Build playlist UI
+                this.buildPlaylistUI();
+                
+                // Load first track
+                this.loadAudio(this.playlist[0], true);
+            }
+            
+            buildPlaylistUI() {
+                const playlistEl = document.getElementById('playlist');
+                playlistEl.innerHTML = '';
+                
+                this.playlist.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'playlist-item';
+                    if (index === this.currentTrackIndex) {
+                        item.classList.add('active');
+                    }
+                    
+                    item.innerHTML = `
+                        <span class="playlist-item-index">${index + 1}</span>
+                        <span class="playlist-item-name">${file.name}</span>
+                    `;
+                    
+                    item.addEventListener('click', () => {
+                        this.playTrack(index);
+                    });
+                    
+                    playlistEl.appendChild(item);
+                });
+            }
+            
+            updatePlaylistUI() {
+                const items = document.querySelectorAll('.playlist-item');
+                items.forEach((item, index) => {
+                    if (index === this.currentTrackIndex) {
+                        item.classList.add('active');
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+            }
+            
+            async playTrack(index) {
+                if (index < 0 || index >= this.playlist.length) return;
+                
+                // Stop current playback
+                this.stop();
+                
+                // Update index
+                this.currentTrackIndex = index;
+                
+                // Load and play new track
+                await this.loadAudio(this.playlist[index], true);
+                this.play();
+            }
+            
+            async playNext() {
+                if (!this.isPlaylistMode || this.playlist.length === 0) return;
+                
+                let nextIndex;
+                
+                if (this.shuffleMode) {
+                    // Random track
+                    nextIndex = Math.floor(Math.random() * this.playlist.length);
+                } else {
+                    // Next track
+                    nextIndex = this.currentTrackIndex + 1;
+                    
+                    if (nextIndex >= this.playlist.length) {
+                        if (this.repeatMode === 'all') {
+                            nextIndex = 0;
+                        } else {
+                            // End of playlist
+                            this.stop();
+                            return;
+                        }
+                    }
+                }
+                
+                await this.playTrack(nextIndex);
+            }
+            
+            async playPrevious() {
+                if (!this.isPlaylistMode || this.playlist.length === 0) return;
+                
+                let prevIndex = this.currentTrackIndex - 1;
+                
+                if (prevIndex < 0) {
+                    if (this.repeatMode === 'all') {
+                        prevIndex = this.playlist.length - 1;
+                    } else {
+                        prevIndex = 0;
+                    }
+                }
+                
+                await this.playTrack(prevIndex);
+            }
+            
+            handleTrackEnded() {
+                if (this.repeatMode === 'one') {
+                    // Replay current track
+                    this.play();
+                } else {
+                    // Play next track
+                    this.playNext();
+                }
+            }
+            
+            toggleShuffle() {
+                this.shuffleMode = !this.shuffleMode;
+                const btn = document.getElementById('shuffleBtn');
+                btn.textContent = this.shuffleMode ? '🔀 Shuffle On' : '🔀 Shuffle Off';
+                btn.style.background = this.shuffleMode ? 'var(--accent-color)' : '';
+                btn.style.color = this.shuffleMode ? 'var(--bg-primary)' : '';
+            }
+            
+            toggleRepeat() {
+                const modes = ['off', 'all', 'one'];
+                const currentIndex = modes.indexOf(this.repeatMode);
+                this.repeatMode = modes[(currentIndex + 1) % modes.length];
+                
+                const btn = document.getElementById('repeatBtn');
+                const labels = {
+                    'off': '🔁 Repeat Off',
+                    'all': '🔁 Repeat All',
+                    'one': '🔂 Repeat One'
+                };
+                
+                btn.textContent = labels[this.repeatMode];
+                btn.style.background = this.repeatMode !== 'off' ? 'var(--accent-color)' : '';
+                btn.style.color = this.repeatMode !== 'off' ? 'var(--bg-primary)' : '';
+            }
+            
+            setupUI() {
+                // File input
+                document.getElementById('audioFile').addEventListener('change', async (e) => {
+                    const files = e.target.files;
+                    if (files.length === 1) {
+                        // Single file
+                        this.isPlaylistMode = false;
+                        document.getElementById('playlistContainer').style.display = 'none';
+                        await this.loadAudio(files[0]);
+                    } else if (files.length > 1) {
+                        // Multiple files - create playlist
+                        this.loadPlaylist(files);
+                    }
+                });
+                
+                // Master volume
+                document.getElementById('masterVolume').addEventListener('input', (e) => {
+                    const value = parseInt(e.target.value);
+                    document.getElementById('masterVolumeValue').textContent = value + '%';
+                    this.updateMasterVolume();
+                });
+                
+                // Adaptive mode toggle
+                document.getElementById('adaptiveMode').addEventListener('change', (e) => {
+                    this.adaptiveMode = e.target.checked;
+                    console.log('Adaptive mode:', this.adaptiveMode ? 'enabled' : 'disabled');
+                });
+                
+                // Environment controls
+                document.getElementById('manualThreshold').addEventListener('input', (e) => {
+                    this.manualThreshold = parseInt(e.target.value);
+                    document.getElementById('manualThresholdValue').textContent = this.manualThreshold + ' dB';
+                    console.log('Manual threshold updated to:', this.manualThreshold);
+                });
+                
+                
+                // Tone shaping controls
+                document.getElementById('targetPhon').addEventListener('input', (e) => {
+                    this.targetPhon = parseInt(e.target.value);
+                    document.getElementById('phonValue').textContent = this.targetPhon + ' phon';
+                    
+                    // Update auto loudness if enabled
+                    if (this.autoLoudnessEnabled) {
+                        this.updateAutoLoudness();
+                    } else {
+                        this.updateFIRFilter();
+                        this.drawResponseChart();
+                    }
+                    this.updateFilterDisplays();
+                });
+                
+                document.getElementById('referencePhon').addEventListener('input', (e) => {
+                    this.referencePhon = parseInt(e.target.value);
+                    document.getElementById('referencePhonValue').textContent = this.referencePhon + ' phon';
+                    this.updateFIRFilter();
+                    this.drawResponseChart();
+                    this.updateFilterDisplays();
+                });
+                
+                document.getElementById('equalLoudnessToggle').addEventListener('change', (e) => {
+                    this.equalLoudnessEnabled = e.target.checked;
+                    document.getElementById('loudnessControls').style.display = 
+                        this.equalLoudnessEnabled ? 'block' : 'none';
+                    
+                    // Show/hide auto loudness control when equal loudness is enabled
+                    document.getElementById('autoLoudnessControl').style.display = 
+                        this.equalLoudnessEnabled ? 'block' : 'none';
+                    
+                    // Update wet/dry mix based on toggle
+                    if (this.dryGain && this.wetGainA && this.wetGainB) {
+                        if (this.equalLoudnessEnabled) {
+                            // Normal operation: mostly wet signal
+                            this.dryGain.gain.value = 0.2;
+                            if (this.currentFilter === 'A') {
+                                this.wetGainA.gain.value = 1.0;
+                                this.wetGainB.gain.value = 0.0;
+                            } else {
+                                this.wetGainA.gain.value = 0.0;
+                                this.wetGainB.gain.value = 1.0;
+                            }
+                        } else {
+                            // Bypass FIR: only dry signal
+                            this.dryGain.gain.value = 1.0;
+                            this.wetGainA.gain.value = 0.0;
+                            this.wetGainB.gain.value = 0.0;
+                        }
+                    }
+                    
+                    console.log(`Equal-Loudness Compensation: ${this.equalLoudnessEnabled ? 'ON' : 'OFF'}`);
+                    this.updateFIRFilter();
+                    this.drawResponseChart();
+                });
+                
+                // Auto Loudness EQ toggle
+                document.getElementById('autoLoudnessToggle').addEventListener('change', (e) => {
+                    this.autoLoudnessEnabled = e.target.checked;
+                    
+                    // Make both target and reference sliders read-only when auto mode is on
+                    const targetSlider = document.getElementById('targetPhon');
+                    const referenceSlider = document.getElementById('referencePhon');
+                    
+                    targetSlider.disabled = this.autoLoudnessEnabled;
+                    targetSlider.style.opacity = this.autoLoudnessEnabled ? '0.5' : '1';
+                    referenceSlider.disabled = this.autoLoudnessEnabled;
+                    referenceSlider.style.opacity = this.autoLoudnessEnabled ? '0.5' : '1';
+                    
+                    if (this.autoLoudnessEnabled) {
+                        // Calculate and apply optimal reference
+                        this.updateAutoLoudness();
+                    }
+                    
+                    console.log(`Auto Loudness EQ: ${this.autoLoudnessEnabled ? 'ON' : 'OFF'}`);
+                });
+                
+                document.getElementById('quietEnhancement').addEventListener('input', (e) => {
+                    this.quietEnhancement = parseInt(e.target.value);
+                    document.getElementById('enhanceValue').textContent = this.quietEnhancement + '%';
+                    this.updateFIRFilter();
+                    this.drawResponseChart();
+                    this.updateFilterDisplays();
+                });
+                
+                document.getElementById('desiredSNR').addEventListener('input', (e) => {
+                    this.desiredSNR = parseInt(e.target.value);
+                    document.getElementById('desiredSNRValue').textContent = this.desiredSNR + ' dB';
+                    
+                    // Update target music level display
+                    if (this.isListening && this.noiseLevel) {
+                        const targetMusicLevel = this.noiseLevel + this.desiredSNR;
+                        document.getElementById('targetMusicLevel').textContent = `${this.noiseLevel.toFixed(0)} + ${this.desiredSNR} = ${targetMusicLevel.toFixed(0)} dB`;
+                    } else {
+                        document.getElementById('targetMusicLevel').textContent = `Noise + ${this.desiredSNR} dB`;
+                    }
+                    
+                    // Immediately recalculate auto gain with new SNR
+                    if (this.isListening && this.noiseLevel) {
+                        const targetMusicLevel = this.noiseLevel + this.desiredSNR;
+                        const newAutoGain = targetMusicLevel - this.targetPhon;
+                        this.autoGain = Math.max(-30, Math.min(30, newAutoGain));
+                        
+                        // console.log(`[SNR UPDATE] Noise: ${this.noiseLevel.toFixed(1)} dB + SNR: ${this.desiredSNR} dB = Target: ${targetMusicLevel.toFixed(1)} dB`);
+                        console.log(`[SNR UPDATE] New Auto Gain: ${this.autoGain.toFixed(1)} dB`);
+                        
+                        // Update master volume immediately
+                        this.updateMasterVolume();
+                        
+                        // Update UI
+                        this.updateEnvironmentUI();
+                    }
+                });
+                
+                document.getElementById('micSensitivity').addEventListener('input', (e) => {
+                    this.micSensitivity = parseFloat(e.target.value);
+                    document.getElementById('micSensitivityValue').textContent = this.micSensitivity.toFixed(1) + 'x';
+                    // Update mic gain in real-time if monitoring
+                    if (this.micGain) {
+                        this.micGain.gain.value = this.micSensitivity;
+                    }
+                });
+                
+                document.getElementById('extraBoostToggle').addEventListener('change', (e) => {
+                    this.extraBoostEnabled = e.target.checked;
+                    // Extra boost controls should always be visible, just disabled when off
+                    const controls = document.getElementById('extraBoostControls');
+                    const sliders = controls.querySelectorAll('input[type="range"]');
+                    sliders.forEach(slider => {
+                        slider.disabled = !this.extraBoostEnabled;
+                        slider.style.opacity = this.extraBoostEnabled ? '1' : '0.5';
+                    });
+                    console.log(`Extra Bass/Treble Boost: ${this.extraBoostEnabled ? 'ON' : 'OFF'}`);
+                    this.updateFIRFilter();
+                    this.drawResponseChart();
+                });
+                
+                document.getElementById('bassAdaptation').addEventListener('input', (e) => {
+                    this.bassAdaptation = parseInt(e.target.value);
+                    document.getElementById('bassAdaptValue').textContent = '+' + this.bassAdaptation + ' dB';
+                    this.updateFIRFilter();
+                    this.drawResponseChart();
+                    this.updateFilterDisplays();
+                });
+                
+                document.getElementById('trebleClarity').addEventListener('input', (e) => {
+                    this.trebleClarity = parseInt(e.target.value);
+                    document.getElementById('trebleClarityValue').textContent = '+' + this.trebleClarity + ' dB';
+                    this.updateFIRFilter();
+                    this.drawResponseChart();
+                    this.updateFilterDisplays();
+                });
+                
+                // Calibration button
+                document.getElementById('calibrateBtn').addEventListener('click', async () => {
+                    await this.playCalibrationTone();
+                });
+                
+                // Control buttons
+                document.getElementById('playBtn').addEventListener('click', () => this.play());
+                document.getElementById('stopBtn').addEventListener('click', () => this.stop());
+                document.getElementById('prevBtn').addEventListener('click', () => this.playPrevious());
+                document.getElementById('nextBtn').addEventListener('click', () => this.playNext());
+                document.getElementById('shuffleBtn').addEventListener('click', () => this.toggleShuffle());
+                document.getElementById('repeatBtn').addEventListener('click', () => this.toggleRepeat());
+                
+                document.getElementById('micBtn').addEventListener('click', async () => {
+                    console.log('Mic button clicked, isListening:', this.isListening);
+                    if (!this.isListening) {
+                        await this.init();
+                        await this.startEnvironmentMonitoring();
+                    } else {
+                        this.stopEnvironmentMonitoring();
+                    }
+                });
+                
+                // Apply Now button - immediately update filter and auto gain
+                document.getElementById('applyNowBtn').addEventListener('click', () => {
+                    if (!this.isListening) {
+                        alert('Please start environment monitoring first');
+                        return;
+                    }
+                    
+                    console.log('=== MANUAL APPLY NOW TRIGGERED ===');
+                    
+                    // Force immediate analysis and update
+                    if (this.thirtySecondBuffer.length >= 15) { // Need at least 15 seconds of data
+                        this.analyzeEnvironmentAndUpdateFilter();
+                    } else {
+                        // Use current noise level for immediate update
+                        const currentNoise = this.noiseLevel;
+                        const targetMusicLevel = currentNoise + this.desiredSNR;
+                        const newAutoGain = targetMusicLevel - this.targetPhon;
+                        const clampedGain = Math.max(-30, Math.min(30, newAutoGain));
+                        
+                        // console.log(`Quick update - Noise: ${currentNoise.toFixed(1)} dB, New Auto Gain: ${clampedGain.toFixed(1)} dB`);
+                        
+                        // Update auto gain immediately
+                        this.autoGain = clampedGain;
+                        this.updateMasterVolume();
+                        
+                        // Don't update filter immediately - wait for next scheduled update
+                        // this.updateFIRFilter(); // Commented out - causes audio interruption
+                        
+                        console.log('Volume updated immediately, filter update deferred to next cycle');
+                    }
+                });
+            }
+            
+            // Play calibration tone at 0dBFS
+            async playCalibrationTone() {
+                try {
+                    // Initialize audio context if not already done
+                    if (!this.audioContext) {
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        console.log('Audio context created for calibration:', this.audioContext.sampleRate, 'Hz');
+                    }
+                    
+                    // Resume audio context if suspended (due to autoplay policy)
+                    if (this.audioContext.state === 'suspended') {
+                        await this.audioContext.resume();
+                        console.log('Audio context resumed');
+                    }
+                    
+                    if (this.calibrationOscillator) {
+                        this.calibrationOscillator.stop();
+                        this.calibrationOscillator = null;
+                        document.getElementById('calibrateBtn').textContent = 'Play Calibration Tone';
+                        return;
+                    }
+                    
+                    // Check if master volume is at 100%
+                    const masterVolumeSlider = document.getElementById('masterVolume');
+                    const masterVolumeValue = parseInt(masterVolumeSlider.value);
+                    console.log('Current master volume:', masterVolumeValue + '%');
+                    
+                    if (masterVolumeValue !== 100) {
+                        if (!confirm('Master Volume is not at 100%. For accurate calibration, please set it to 100%.\n\nContinue anyway?')) {
+                            return;
+                        }
+                    }
+                    
+                    // Create oscillator at 1kHz
+                    this.calibrationOscillator = this.audioContext.createOscillator();
+                    this.calibrationOscillator.type = 'sine';
+                    this.calibrationOscillator.frequency.value = this.calibrationFrequency;
+                    
+                    // Create gain node at 0dBFS (gain = 1.0)
+                    const calibrationGain = this.audioContext.createGain();
+                    calibrationGain.gain.value = 1.0; // 0dBFS
+                    
+                    // Apply master volume to calibration tone
+                    const masterVolume = parseInt(document.getElementById('masterVolume').value) / 100;
+                    calibrationGain.gain.value = masterVolume;
+                    
+                    // Connect directly to destination (bypassing any other processing)
+                    this.calibrationOscillator.connect(calibrationGain);
+                    calibrationGain.connect(this.audioContext.destination);
+                    
+                    console.log('Calibration gain set to:', masterVolume);
+                    
+                    // Start
+                    this.calibrationOscillator.start();
+                    document.getElementById('calibrateBtn').textContent = 'Stop Tone (Adjust system volume to 85 dB)';
+                    console.log('Calibration tone started: 1kHz sine wave at 0dBFS');
+                    console.log('Master Volume:', document.getElementById('masterVolume').value + '%');
+                    console.log('Adjust your system/device volume until SPL meter reads 85 dB');
+                    
+                    // Auto-stop after 5 seconds
+                    this.calibrationOscillator.onended = () => {
+                        this.calibrationOscillator = null;
+                        document.getElementById('calibrateBtn').textContent = 'Play Calibration Tone';
+                        console.log('Calibration tone stopped');
+                    };
+                    
+                    setTimeout(() => {
+                        if (this.calibrationOscillator) {
+                            this.calibrationOscillator.stop();
+                        }
+                    }, 5000);
+                    
+                } catch (error) {
+                    console.error('Error playing calibration tone:', error);
+                    alert('Error playing calibration tone. Please try again.');
+                }
+            }
+        }
+        
+        // Initialize the adaptive player
+        console.log('Creating Adaptive Quiet Player instance...');
+        const player = new AdaptiveQuietPlayer();
+    </script>
+</body>
+</html>

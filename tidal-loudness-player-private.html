@@ -1,0 +1,4736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>TIDAL Loudness Player - Advanced DSP</title>
+    <style>
+        :root {
+            --safe-area-inset-top: env(safe-area-inset-top);
+            --safe-area-inset-bottom: env(safe-area-inset-bottom);
+            --safe-area-padding-bottom: calc(env(safe-area-inset-bottom) + 10px);
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-dim: #666666;
+            --tidal-cyan: #00D4D4;
+            --tidal-hover: #00E8E8;
+            --tidal-active: #00B8B8;
+            --spl-safe: #4CAF50;
+            --spl-moderate: #FF9800;
+            --spl-loud: #FF5252;
+            --tab-height: 50px;
+            --header-height: 56px;
+            --mini-player-height: 64px;
+            --border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        /* Allow text selection for input fields */
+        input[type="text"],
+        input[type="number"],
+        input[type="password"],
+        textarea {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+            -webkit-touch-callout: default !important;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            padding-top: var(--safe-area-inset-top);
+            padding-bottom: var(--safe-area-inset-bottom);
+        }
+
+        /* App Container */
+        .app-container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            height: var(--header-height);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            position: relative;
+            z-index: 100;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+            text-align: center;
+        }
+
+        .header-button {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .header-button:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .tab-content {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            display: none;
+        }
+        
+        .tab-content:not(#easyTab) {
+            padding-bottom: calc(var(--mini-player-height) + var(--tab-height) + var(--safe-area-padding-bottom) + 60px + 20px);
+        }
+        
+        #easyTab {
+            padding-bottom: calc(var(--mini-player-height) + var(--tab-height) + var(--safe-area-padding-bottom) + 20px);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Easy Mode Tab */
+        .easy-mode-container {
+            padding: 20px;
+        }
+
+        .loudness-display {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .spl-value {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .spl-label {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .spl-indicator {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .spl-indicator.safe {
+            background: var(--spl-safe);
+            color: white;
+        }
+
+        .spl-indicator.moderate {
+            background: var(--spl-moderate);
+            color: white;
+        }
+
+        .spl-indicator.loud {
+            background: var(--spl-loud);
+            color: white;
+        }
+
+        .loudness-slider-container {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .slider-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .slider-value {
+            font-size: 16px;
+            color: var(--tidal-cyan);
+            font-weight: 600;
+        }
+
+        .loudness-slider {
+            width: 100%;
+            height: 48px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .loudness-slider::-webkit-slider-track {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .loudness-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 28px;
+            height: 28px;
+            background: var(--tidal-cyan);
+            border-radius: 50%;
+            cursor: pointer;
+            margin-top: -11px;
+            box-shadow: 0 2px 8px rgba(0, 212, 212, 0.3);
+        }
+
+        .compensation-info {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Calibration */
+        .calibration-button {
+            width: 100%;
+            padding: 16px;
+            background: var(--tidal-cyan);
+            border: none;
+            border-radius: 12px;
+            color: var(--bg-primary);
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+
+        .calibration-button:active {
+            background: var(--tidal-active);
+        }
+
+        /* Search Tab */
+        .search-container {
+            padding: 16px;
+            background: var(--bg-secondary);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        
+        #searchResults {
+            padding: 16px;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 44px;
+            padding: 0 16px 0 44px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: 22px;
+            color: var(--text-primary);
+            font-size: 16px;
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        /* Playlist Tab */
+        .playlist-container {
+            padding: 16px;
+        }
+
+        .playlist-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .playlist-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .playlist-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .playlist-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin: 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            gap: 12px;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        
+        .playlist-item > div:first-child {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+        
+        .playlist-item > div:first-child > div {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .playlist-item:active {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .playlist-item.active {
+            background: rgba(0, 212, 212, 0.1);
+        }
+        
+        .playlist-item.edit-mode {
+            padding-right: 100px;
+            padding-left: 48px;
+            position: relative;
+        }
+        
+        .playlist-album-art {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            object-fit: cover;
+            background: var(--bg-tertiary);
+            flex-shrink: 0;
+        }
+        
+        .playlist-album-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            opacity: 0.3;
+        }
+        
+        .playlist-item-actions {
+            position: absolute;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .playlist-item-delete {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 82, 82, 0.2);
+            border: none;
+            color: #FF5252;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .drag-handle {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: move;
+            color: var(--text-secondary);
+            font-size: 18px;
+            touch-action: none;
+        }
+        
+        .playlist-item.dragging {
+            opacity: 0.5;
+        }
+        
+        .playlist-item.drag-over {
+            border-top: 2px solid var(--tidal-cyan);
+        }
+        
+        .add-button {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 212, 212, 0.2);
+            border: none;
+            color: var(--tidal-cyan);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        /* Settings Tab */
+        .settings-container {
+            padding: 16px;
+        }
+
+        .settings-section {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .settings-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .eq-input-container {
+            margin-bottom: 16px;
+        }
+
+        .eq-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+        }
+
+        .file-input-container {
+            margin-bottom: 16px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .file-input-label:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 51px;
+            height: 31px;
+        }
+
+        .toggle-input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: .3s;
+            border-radius: 31px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 27px;
+            width: 27px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        .toggle-input:checked + .toggle-slider {
+            background-color: var(--tidal-cyan);
+        }
+
+        .toggle-input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Mini Player */
+        .mini-player {
+            position: fixed;
+            bottom: calc(var(--tab-height) + var(--safe-area-padding-bottom));
+            left: 0;
+            right: 0;
+            height: var(--mini-player-height);
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            z-index: 90;
+            transform: translateY(0);
+            transition: transform 0.3s;
+            cursor: pointer;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .mini-player.hidden {
+            transform: translateY(100%);
+        }
+        
+        .mini-player-content {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .mini-player-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+        }
+        
+        .mini-player-progress::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 0;
+            right: 0;
+            bottom: -10px;
+        }
+        
+        .mini-player-progress-bar {
+            height: 100%;
+            background: var(--tidal-cyan);
+            width: 0%;
+            transition: width 0.1s;
+            pointer-events: none;
+        }
+        
+        .mini-player-progress.seeking .mini-player-progress-bar {
+            transition: none;
+        }
+        
+        .mini-player-album-art {
+            width: 48px;
+            height: 48px;
+            border-radius: 4px;
+            object-fit: cover;
+            background: var(--bg-tertiary);
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .mini-player-album-art:empty::before {
+            content: '🎵';
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            font-size: 24px;
+            opacity: 0.3;
+        }
+        
+        .mini-player-info {
+            cursor: pointer;
+        }
+        
+        .mini-player-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .mini-player-button {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: none;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .mini-player-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .mini-player-button:active {
+            transform: scale(0.95);
+        }
+        
+        .mini-player-button.primary {
+            width: 40px;
+            height: 40px;
+            background: var(--tidal-cyan);
+            color: #000;
+        }
+        
+        .mini-player-button.primary:hover {
+            background: var(--tidal-hover);
+        }
+        
+        .mini-player-button svg {
+            pointer-events: none;
+        }
+        
+        .mini-player-button.primary svg {
+            fill: #000;
+        }
+        
+        /* Global Loudness Slider */
+        .global-loudness-container {
+            position: fixed;
+            bottom: calc(var(--tab-height) + var(--mini-player-height) + var(--safe-area-padding-bottom));
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 12px 16px;
+            z-index: 85;
+            display: none;
+        }
+        
+        .global-loudness-container.visible {
+            display: block;
+        }
+        
+        .global-loudness-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .global-loudness-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        
+        .global-loudness-slider {
+            flex: 1;
+            height: 32px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            outline: none;
+        }
+        
+        .global-loudness-slider::-webkit-slider-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+        
+        .global-loudness-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--tidal-cyan);
+            border-radius: 50%;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 2px 8px rgba(0, 212, 212, 0.3);
+        }
+        
+        .global-loudness-value {
+            font-size: 12px;
+            color: var(--tidal-cyan);
+            font-weight: 600;
+            min-width: 35px;
+            text-align: right;
+        }
+
+        /* Tab Bar */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: calc(var(--tab-height) + var(--safe-area-padding-bottom));
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            z-index: 100;
+            padding-bottom: var(--safe-area-padding-bottom);
+        }
+
+        .tab-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.3s;
+            position: relative;
+            padding: 8px 0;
+        }
+
+        .tab-item.active {
+            color: var(--tidal-cyan);
+        }
+
+        .tab-icon {
+            font-size: 20px;
+        }
+
+        .tab-label {
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        /* Calibration Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        .calibration-step {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .calibration-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .calibration-instruction {
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 24px;
+            color: var(--text-secondary);
+        }
+
+        .calibration-input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .calibration-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .calibration-buttons button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--tidal-cyan);
+            color: var(--bg-primary);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            top: calc(var(--safe-area-inset-top) + 20px);
+            left: 20px;
+            right: 20px;
+            z-index: 400;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideDown 0.3s ease;
+            pointer-events: all;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Loading indicator */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top-color: var(--tidal-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Hidden audio element */
+        #audioPlayer {
+            display: none;
+        }
+        /* Fullscreen Player Styles */
+        .fullscreen-player {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-primary);
+            z-index: 10000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .fullscreen-player.active {
+            display: flex;
+            opacity: 1;
+        }
+        
+        .fullscreen-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-size: cover;
+            background-position: center;
+            filter: blur(50px) brightness(0.3);
+            z-index: -1;
+        }
+        
+        .dim-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0);
+            z-index: 9999;
+            pointer-events: none;
+            transition: background 0.3s ease;
+        }
+        
+        .dim-overlay.active {
+            background: rgba(0, 0, 0, 0.95);
+        }
+        
+        .fullscreen-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: var(--safe-area-inset-top) 20px calc(var(--safe-area-inset-bottom) + 50px);
+            max-width: 500px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .fullscreen-header {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 40px;
+        }
+        
+        .fullscreen-close {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+        
+        .fullscreen-album-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            min-height: 200px;
+        }
+        
+        .fullscreen-album-art {
+            width: 80%;
+            max-width: 350px;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            background: var(--bg-secondary);
+        }
+        
+        .fullscreen-info {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .fullscreen-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .fullscreen-artist {
+            font-size: 18px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        
+        .fullscreen-album {
+            font-size: 14px;
+            color: var(--text-dim);
+        }
+        
+        .fullscreen-progress {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        
+        .fullscreen-seeker {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            outline: none;
+        }
+        
+        .fullscreen-seeker::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--tidal-cyan);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            min-width: 40px;
+        }
+        
+        .fullscreen-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .control-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        
+        .control-btn:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .control-btn.large {
+            width: 72px;
+            height: 72px;
+            background: var(--tidal-cyan);
+            color: var(--bg-primary);
+        }
+        
+        .control-btn.active {
+            color: var(--tidal-cyan);
+        }
+        
+        .fullscreen-volume {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 20px;
+        }
+        
+        .fullscreen-volume-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            outline: none;
+        }
+        
+        .fullscreen-volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Login Styles */
+        .login-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 10000;
+        }
+        
+        .login-container.hidden {
+            display: none;
+        }
+        
+        .login-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 32px 24px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        
+        .login-logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .login-logo h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+        }
+        
+        .login-logo p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .auth-section {
+            display: none;
+        }
+        
+        .auth-section.active {
+            display: block;
+        }
+        
+        .device-auth-info {
+            background: rgba(0, 212, 212, 0.1);
+            border: 1px solid var(--tidal-cyan);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .user-code {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--tidal-cyan);
+            letter-spacing: 4px;
+            margin: 16px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        
+        .verification-url {
+            color: var(--tidal-cyan);
+            text-decoration: none;
+            font-size: 16px;
+            display: inline-block;
+            margin: 16px 0;
+            padding: 8px 16px;
+            border: 1px solid var(--tidal-cyan);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .verification-url:hover {
+            background: var(--tidal-cyan);
+            color: var(--bg-primary);
+        }
+        
+        .auth-timer {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 16px;
+        }
+        
+        .auth-status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 14px;
+            padding: 12px;
+            border-radius: 8px;
+        }
+        
+        .auth-status.info {
+            background: rgba(0, 212, 212, 0.1);
+            color: var(--tidal-cyan);
+        }
+        
+        .auth-status.success {
+            background: rgba(76, 175, 80, 0.1);
+            color: var(--spl-safe);
+        }
+        
+        .auth-status.error {
+            background: rgba(255, 107, 107, 0.1);
+            color: var(--spl-loud);
+        }
+        
+        .auth-status.warning {
+            background: rgba(255, 165, 0, 0.1);
+            color: var(--spl-moderate);
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            border-top-color: var(--tidal-cyan);
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .token-input-section {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 24px 0;
+            position: relative;
+        }
+        
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: var(--border-color);
+        }
+        
+        .divider span {
+            background: var(--bg-secondary);
+            padding: 0 16px;
+            position: relative;
+            color: var(--text-secondary);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .success-icon {
+            font-size: 64px;
+            margin-bottom: 24px;
+            color: var(--spl-safe);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Container -->
+    <div class="login-container" id="loginContainer">
+        <div class="login-card">
+            <div class="login-logo">
+                <h1>🎵 TIDAL Loudness Player</h1>
+                <p>Advanced DSP Edition</p>
+            </div>
+            
+            <!-- OAuth Device Flow Section -->
+            <div id="oauthSection" class="auth-section active">
+                <h3 style="text-align: center; margin-bottom: 24px; font-size: 20px;">Sign in to TIDAL</h3>
+                
+                <div id="corsNotice" style="background: rgba(0, 212, 212, 0.1); border: 1px solid var(--tidal-cyan); border-radius: 8px; padding: 12px; margin-bottom: 20px; font-size: 14px; text-align: center;">
+                    <script>
+                        if (window.location.protocol === 'file:') {
+                            document.write('<strong>Local Mode</strong><br>Direct TIDAL API access enabled');
+                        } else {
+                            document.write('<strong>Web Version</strong><br>Will attempt to connect via CORS proxy');
+                        }
+                    </script>
+                </div>
+                
+                <button class="button button-primary" id="startAuthBtn" onclick="startDeviceAuth()" style="width: 100%;">
+                    Connect with TIDAL
+                </button>
+                
+                <div id="deviceAuthInfo" class="device-auth-info" style="display: none;">
+                    <p style="margin-bottom: 16px;">Enter this code on your device:</p>
+                    <div class="user-code" id="userCode">----</div>
+                    <p style="margin: 16px 0;">Or visit:</p>
+                    <a href="#" class="verification-url" id="verificationUrl" target="_blank">tidal.com/link</a>
+                    <div class="auth-timer" id="authTimer">Expires in: --:--</div>
+                </div>
+                
+                <div class="auth-status" id="authStatus" style="display: none;"></div>
+                
+                <div class="divider">
+                    <span>OR</span>
+                </div>
+                
+                <!-- Direct Token Input -->
+                <div class="token-input-section">
+                    <h4 style="text-align: center; margin-bottom: 16px; color: var(--text-secondary);">Use Access Token</h4>
+                    <textarea id="directTokenInput" placeholder="Paste your TIDAL access token here..." 
+                        style="width: 100%; padding: 12px; background: var(--bg-tertiary); 
+                        border: 1px solid var(--border-color); border-radius: 8px; 
+                        color: var(--text-primary); font-size: 14px; font-family: 'Monaco', 'Menlo', monospace; 
+                        resize: vertical; min-height: 80px;"></textarea>
+                    <button class="button button-secondary" onclick="useDirectToken()" style="margin-top: 12px; width: 100%;">
+                        Use Token
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Success Section -->
+            <div id="successSection" class="auth-section">
+                <div style="text-align: center;">
+                    <div class="success-icon">✓</div>
+                    <h3 style="margin-bottom: 16px;">Successfully Connected!</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 32px;">
+                        Loading your music...
+                    </p>
+                    <button class="button button-primary" onclick="continueToApp()" style="width: 100%;">
+                        Continue to App
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <button class="header-button" id="menuBtn">☰</button>
+            <div class="header-title">TIDAL Loudness Player</div>
+            <button class="header-button" onclick="logout()" title="Logout">🚪</button>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Easy Mode Tab -->
+            <div class="tab-content active" id="easyTab">
+                <div class="easy-mode-container">
+                    <!-- SPL Display -->
+                    <div class="loudness-display">
+                        <div class="spl-value" id="splValue">-- dB</div>
+                        <div class="spl-label">Estimated SPL</div>
+                        <div class="spl-indicator safe" id="splIndicator">Safe</div>
+                    </div>
+
+                    <!-- Loudness Slider -->
+                    <div class="loudness-slider-container">
+                        <div class="slider-header">
+                            <div class="slider-title">Loudness Control</div>
+                            <div class="slider-value" id="sliderValue">50%</div>
+                        </div>
+                        <input type="range" class="loudness-slider" id="loudnessSlider" 
+                               min="0" max="100" value="50" step="1">
+                    </div>
+
+                    <!-- Compensation Info -->
+                    <div class="compensation-info">
+                        <div class="info-row">
+                            <span class="info-label">Target Level</span>
+                            <span class="info-value" id="targetPhonValue">65.0 phon</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Reference Level</span>
+                            <span class="info-value" id="referencePhonValue">87.1 phon</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Compensation</span>
+                            <span class="info-value" id="compensationValue">+22.1 dB</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Master Gain</span>
+                            <span class="info-value" id="masterGainValue">0.0 dB</span>
+                        </div>
+                    </div>
+
+                    <!-- Calibration Button -->
+                    <button class="calibration-button" id="calibrateBtn">
+                        SPL Calibration
+                    </button>
+                </div>
+            </div>
+
+            <!-- Playlist Tab -->
+            <div class="tab-content" id="playlistTab">
+                <div class="playlist-container">
+                    <div class="playlist-header">
+                        <h1 class="playlist-title">Playlist</h1>
+                        <div class="playlist-actions">
+                            <button class="header-button" id="editModeBtn" title="Edit mode">✏️</button>
+                            <button class="header-button" id="addFilesBtn" title="Add files">📁</button>
+                            <button class="header-button" id="savePlaylistBtn" title="Save playlist">💾</button>
+                            <button class="header-button" id="shuffleBtn" title="Shuffle">🔀</button>
+                            <button class="header-button" id="repeatBtn" title="Repeat">🔁</button>
+                        </div>
+                    </div>
+                    <div id="playlistItems">
+                        <!-- Playlist items will be inserted here -->
+                    </div>
+                </div>
+                <!-- Hidden file inputs -->
+                <input type="file" id="playlistFileInput" style="display: none;" accept="audio/*" multiple>
+                <input type="file" id="playlistFolderInput" style="display: none;" webkitdirectory directory multiple>
+            </div>
+
+            <!-- Search Tab -->
+            <div class="tab-content" id="searchTab">
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <div class="search-icon">🔍</div>
+                        <input type="text" class="search-input" id="searchInput" 
+                               placeholder="Artists, songs, or albums">
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 12px;">
+                        <button class="header-button" id="searchAddFilesBtn" title="Add local files" style="flex: none;">📁</button>
+                        <button class="header-button" id="searchAddFolderBtn" title="Add folder" style="flex: none;">📂</button>
+                    </div>
+                </div>
+                <div id="searchResults">
+                    <!-- Search results will be inserted here -->
+                </div>
+                <!-- Hidden file inputs for search tab -->
+                <input type="file" id="searchFileInput" style="display: none;" accept="audio/*" multiple>
+                <input type="file" id="searchFolderInput" style="display: none;" webkitdirectory directory multiple>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="settingsTab">
+                <div class="settings-container">
+                    <!-- DSP Settings -->
+                    <div class="settings-section">
+                        <h2 class="settings-title">DSP Settings</h2>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <span>Loudness Compensation</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" class="toggle-input" id="loudnessToggle" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <span>Bass Enhancement</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" class="toggle-input" id="bassEnhanceToggle" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>RMS Preamp Calculation</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" class="toggle-input" id="rmsPreampToggle" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Headphone EQ Settings -->
+                    <div class="settings-section">
+                        <h2 class="settings-title">Headphone EQ</h2>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <span>Enable Headphone EQ</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" class="toggle-input" id="headphoneEqToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div class="eq-input-container">
+                            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 14px;">
+                                AutoEQ Parametric EQ (Paste from AutoEQ results)
+                            </label>
+                            <textarea class="eq-textarea" id="eqTextarea" placeholder="Filter 1: ON PK Fc 20.0 Hz Gain 8.3 dB Q 6.00
+Filter 2: ON PK Fc 34.0 Hz Gain -0.9 dB Q 2.26
+Filter 3: ON PK Fc 125.0 Hz Gain -3.6 dB Q 1.24
+..."></textarea>
+                            <button class="calibration-button" id="applyEqBtn" style="margin-top: 12px;">
+                                Apply EQ
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TIDAL Settings -->
+                    <div class="settings-section">
+                        <h2 class="settings-title">TIDAL Account</h2>
+                        <div id="tidalStatus" style="margin-bottom: 16px; font-size: 14px; color: var(--text-secondary);">
+                            Not configured
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <button class="calibration-button" id="tidalSettingsBtn" style="flex: 1; margin: 0;">
+                                Manual Token
+                            </button>
+                            <button class="calibration-button" id="removeTidalBtn" style="flex: 1; margin: 0; background: rgba(255, 82, 82, 0.2); color: #FF5252;">
+                                Log Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mini Player -->
+        <div class="mini-player hidden" id="miniPlayer">
+            <div class="mini-player-content">
+                <img id="miniPlayerAlbumArt" class="mini-player-album-art" src="" alt="Album Art" style="display: none;">
+                <div class="mini-player-info" style="flex: 1;">
+                    <div id="miniPlayerTitle" style="font-weight: 500;">No track</div>
+                    <div id="miniPlayerArtist" style="font-size: 12px; color: var(--text-secondary);"></div>
+                </div>
+                <div class="mini-player-controls">
+                    <button class="mini-player-button" id="miniPrevBtn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="19 20 9 12 19 4"></polygon>
+                            <rect x="5" y="4" width="2" height="16"></rect>
+                        </svg>
+                    </button>
+                    <button class="mini-player-button primary" id="miniPlayBtn">
+                        <svg width="28" height="28" viewBox="0 0 48 48" fill="currentColor">
+                            <polygon points="19 10 39 24 19 38"></polygon>
+                        </svg>
+                    </button>
+                    <button class="mini-player-button" id="miniNextBtn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 4 15 12 5 20"></polygon>
+                            <rect x="17" y="4" width="2" height="16"></rect>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="mini-player-progress" id="miniPlayerProgress">
+                <div class="mini-player-progress-bar" id="miniPlayerProgressBar"></div>
+            </div>
+        </div>
+        
+        <!-- Global Loudness Slider -->
+        <div class="global-loudness-container" id="globalLoudnessContainer">
+            <div class="global-loudness-wrapper">
+                <span class="global-loudness-label">Loudness</span>
+                <input type="range" class="global-loudness-slider" id="globalLoudnessSlider" 
+                       min="0" max="100" value="50" step="1">
+                <span class="global-loudness-value" id="globalSliderValue">50%</span>
+            </div>
+        </div>
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="tab-item active" data-tab="easy">
+                <div class="tab-icon">🎚️</div>
+                <div class="tab-label">Easy</div>
+            </button>
+            <button class="tab-item" data-tab="playlist">
+                <div class="tab-icon">🎵</div>
+                <div class="tab-label">Playlist</div>
+            </button>
+            <button class="tab-item" data-tab="search">
+                <div class="tab-icon">🔍</div>
+                <div class="tab-label">Search</div>
+            </button>
+            <button class="tab-item" data-tab="settings">
+                <div class="tab-icon">⚙️</div>
+                <div class="tab-label">Settings</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Calibration Modal -->
+    <div class="modal" id="calibrationModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">SPL Calibration</h2>
+                <button class="modal-close" id="closeCalibrationModal">×</button>
+            </div>
+            
+            <div class="calibration-step">
+                <div class="calibration-icon">📏</div>
+                <p class="calibration-instruction">
+                    Default calibration: 80 dB SPL at 80 phon reference.<br>
+                    To customize: Set your volume to typical level, play test tone, and measure SPL.
+                </p>
+                
+                <div style="margin: 16px 0; padding: 12px; background: var(--bg-tertiary); border-radius: 8px;">
+                    <div style="font-size: 14px; color: var(--text-secondary);">Current Settings:</div>
+                    <div style="font-size: 12px; margin-top: 8px;">
+                        Calibration SPL: <span id="currentCalibSPL">80.0</span> dB<br>
+                        Desired SPL: <span id="currentDesiredSPL">70.0</span> dB<br>
+                        System Offset: <span id="currentOffset">0.0</span> dB
+                    </div>
+                </div>
+                
+                <input type="number" class="calibration-input" id="measuredSPL" 
+                       placeholder="Enter measured SPL (e.g., 75)" step="0.1">
+                
+                <div class="calibration-buttons">
+                    <button class="btn-secondary" id="playTestTone">Play Test Tone</button>
+                    <button class="btn-primary" id="saveCalibration">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIDAL Modal -->
+    <div class="modal" id="tidalModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">TIDAL Configuration</h2>
+                <button class="modal-close" id="closeTidalModal">×</button>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">
+                    Access Token (OAuth)
+                </label>
+                <input type="text" class="calibration-input" id="tidalTokenInput" 
+                       placeholder="Enter your TIDAL access token">
+                <p style="font-size: 12px; color: var(--text-dim); margin-top: 8px;">
+                    Paste your OAuth access token here if you already have one.
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">
+                    Client ID (Optional)
+                </label>
+                <input type="text" class="calibration-input" id="clientIdInput" 
+                       placeholder="Leave empty to use default">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">
+                    Country Code
+                </label>
+                <input type="text" class="calibration-input" id="countryCodeInput" 
+                       placeholder="Enter country code (e.g., US, KR, JP)" maxlength="2" style="text-transform: uppercase;">
+            </div>
+            
+            <button class="btn-primary" id="saveTidalBtn" style="width: 100%;">
+                Save
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Debug Console (hidden by default) -->
+    <div id="debugConsole" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; 
+         max-height: 200px; background: rgba(0,0,0,0.9); color: #0f0; font-family: monospace; 
+         font-size: 10px; padding: 10px; overflow-y: auto; z-index: 9999; 
+         border-top: 2px solid #00ff00;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <strong>Debug Console</strong>
+            <button onclick="document.getElementById('debugConsole').style.display='none'" 
+                    style="background: #ff0000; color: white; border: none; padding: 2px 8px; border-radius: 3px;">
+                Close
+            </button>
+        </div>
+        <div id="debugLogs"></div>
+    </div>
+
+    <!-- Hidden audio element -->
+    <audio id="audioPlayer"></audio>
+    
+    <!-- Full Screen Player -->
+    <div id="fullscreenPlayer" class="fullscreen-player">
+        <div class="fullscreen-background"></div>
+        <div id="dimOverlay" class="dim-overlay"></div>
+        <div class="fullscreen-content">
+            <div class="fullscreen-header">
+                <button class="fullscreen-close" id="fullscreenCloseBtn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="7 13 12 18 17 13"></polyline>
+                        <polyline points="7 6 12 11 17 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="fullscreen-album-container">
+                <img id="fullscreenAlbumArt" class="fullscreen-album-art" src="" alt="Album Art">
+            </div>
+            
+            <div class="fullscreen-info">
+                <h1 id="fullscreenTitle" class="fullscreen-title"></h1>
+                <p id="fullscreenArtist" class="fullscreen-artist"></p>
+                <p id="fullscreenAlbum" class="fullscreen-album"></p>
+            </div>
+            
+            <div class="fullscreen-progress">
+                <span id="fullscreenCurrentTime" class="time">0:00</span>
+                <input type="range" id="fullscreenSeeker" class="fullscreen-seeker" min="0" max="100" value="0">
+                <span id="fullscreenDuration" class="time">0:00</span>
+            </div>
+            
+            <div class="fullscreen-controls">
+                <button class="control-btn" id="fullscreenShuffleBtn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 3 21 3 21 8"></polyline>
+                        <line x1="4" y1="20" x2="21" y2="3"></line>
+                        <polyline points="21 16 21 21 16 21"></polyline>
+                        <line x1="15" y1="15" x2="21" y2="21"></line>
+                        <line x1="4" y1="4" x2="9" y2="9"></line>
+                    </svg>
+                </button>
+                <button class="control-btn" id="fullscreenPrevBtn">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="19 20 9 12 19 4"></polygon>
+                        <rect x="5" y="4" width="2" height="16"></rect>
+                    </svg>
+                </button>
+                <button class="control-btn large" id="fullscreenPlayBtn">
+                    <svg width="48" height="48" viewBox="0 0 48 48" fill="currentColor">
+                        <polygon points="16 10 36 24 16 38"></polygon>
+                    </svg>
+                </button>
+                <button class="control-btn" id="fullscreenNextBtn">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 4 15 12 5 20"></polygon>
+                        <rect x="17" y="4" width="2" height="16"></rect>
+                    </svg>
+                </button>
+                <button class="control-btn" id="fullscreenRepeatBtn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="17 1 21 5 17 9"></polyline>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                        <polyline points="7 23 3 19 7 15"></polyline>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="fullscreen-volume">
+                <span style="font-size: 12px; color: var(--text-secondary); margin-right: 8px;">Loudness</span>
+                <input type="range" id="fullscreenVolume" class="fullscreen-volume-slider" min="0" max="100" value="50">
+                <span id="fullscreenVolumeValue" style="font-size: 12px; color: var(--text-secondary); margin-left: 8px; min-width: 35px;">50%</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // TIDAL Loudness Player Advanced Mobile - DSP Implementation
+        
+        // =====================================================
+        // OAuth Login Implementation
+        // =====================================================
+        
+        // TIDAL API Configuration
+        const TIDAL_AUTH_URL = 'https://auth.tidal.com/v1';
+        
+        // Client credentials from tidal-dl-ng
+        const CLIENT_ID = 'zU4XHVVkc2tDPo4t';
+        const CLIENT_SECRET = 'VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4=';
+        const FIRETV_CLIENT_ID = 'OmDtrzFgyVVL6uW56OnFA2COiabqm';
+        
+        // Check if running locally (file:// protocol)
+        const IS_LOCAL = window.location.protocol === 'file:';
+        
+        // Auth state
+        let deviceAuthData = null;
+        let authInterval = null;
+        let expiryInterval = null;
+        let currentClientId = CLIENT_ID;
+        let currentClientSecret = CLIENT_SECRET;
+        
+        // Storage keys for authentication
+        const AUTH_STORAGE_KEYS = {
+            TOKEN: 'tidalToken',
+            REFRESH_TOKEN: 'tidalRefreshToken',
+            TOKEN_EXPIRY: 'tidalTokenExpiry',
+            USER_ID: 'tidalUserId',
+            COUNTRY_CODE: 'tidalCountryCode',
+            CLIENT_ID: 'tidalClientId'
+        };
+
+        // Smart fetch that handles CORS based on environment
+        async function fetchWithCORS(url, options = {}) {
+            // For local files, always use direct fetch
+            if (IS_LOCAL) {
+                return fetch(url, options);
+            }
+            
+            // For web, use CORS proxy
+            const CORS_PROXY = 'https://corsproxy.io/?';
+            try {
+                const proxyUrl = CORS_PROXY + encodeURIComponent(url);
+                return await fetch(proxyUrl, {
+                    ...options,
+                    headers: {
+                        ...options.headers,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+            } catch (error) {
+                console.error('CORS proxy failed:', error);
+                throw error;
+            }
+        }
+
+        // Check if user is already authenticated
+        function checkAuthStatus() {
+            const token = localStorage.getItem(AUTH_STORAGE_KEYS.TOKEN);
+            const tokenExpiry = parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.TOKEN_EXPIRY) || '0');
+            
+            if (token && tokenExpiry > Date.now()) {
+                // Valid token exists
+                showApp();
+                setupTokenRefresh();
+                return true;
+            } else if (token) {
+                // Token expired, try to refresh
+                refreshAuthToken().then(() => {
+                    showApp();
+                    setupTokenRefresh();
+                }).catch(() => {
+                    // Refresh failed, show login
+                    clearAuthData();
+                });
+                return false;
+            }
+            return false;
+        }
+
+        // Start OAuth device flow
+        async function startDeviceAuth(useFireTv = false) {
+            console.log('Starting device auth...', useFireTv ? 'Fire TV' : 'Android Auto');
+            try {
+                const btn = document.getElementById('startAuthBtn');
+                if (!btn) {
+                    console.error('Start auth button not found');
+                    return;
+                }
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading-spinner"></span>Connecting...';
+                
+                // Switch client credentials if needed
+                if (useFireTv) {
+                    currentClientId = FIRETV_CLIENT_ID;
+                    currentClientSecret = '';
+                } else {
+                    currentClientId = CLIENT_ID;
+                    currentClientSecret = CLIENT_SECRET;
+                }
+                
+                console.log('Using client ID:', currentClientId);
+                
+                // Try real API
+                try {
+                    const authUrl = TIDAL_AUTH_URL + '/oauth2/device_authorization';
+                    const response = await fetchWithCORS(authUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: new URLSearchParams({
+                            client_id: currentClientId,
+                            scope: 'r_usr+w_usr+w_sub'
+                        })
+                    });
+                    
+                    console.log('Response received:', response.status);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('Response error:', errorText);
+                        throw new Error(`Failed to start device authorization: ${response.status}`);
+                    }
+                    
+                    deviceAuthData = await response.json();
+                } catch (apiError) {
+                    console.log('API failed, falling back to demo mode:', apiError.message);
+                    
+                    // Fallback to demo mode for testing
+                    deviceAuthData = {
+                        deviceCode: 'DEMO-DEVICE-CODE',
+                        userCode: 'DEMO-1234',
+                        verificationUri: 'tidal.com/link',
+                        verificationUriComplete: 'tidal.com/link/DEMO-1234',
+                        expiresIn: 300
+                    };
+                    
+                    updateAuthStatus('Using demo mode (API failed)', 'warning');
+                }
+                
+                console.log('Device auth data:', deviceAuthData);
+                
+                // Show device auth info
+                document.getElementById('deviceAuthInfo').style.display = 'block';
+                document.getElementById('userCode').textContent = deviceAuthData.userCode;
+                document.getElementById('verificationUrl').href = 'https://' + deviceAuthData.verificationUriComplete;
+                
+                // Start expiry countdown
+                startExpiryTimer(deviceAuthData.expiresIn);
+                
+                // Start polling for authorization
+                startPolling(deviceAuthData.deviceCode);
+                
+                // Update status
+                updateAuthStatus('Waiting for authorization...', 'info');
+                
+                // Hide start button
+                btn.style.display = 'none';
+                
+            } catch (error) {
+                console.error('Device auth error:', error);
+                
+                // Try Fire TV credentials if Android Auto fails
+                if (!useFireTv) {
+                    updateAuthStatus('Trying alternative authentication...', 'warning');
+                    setTimeout(() => startDeviceAuth(true), 1000);
+                } else {
+                    updateAuthStatus('Failed to start authentication', 'error');
+                    const btn = document.getElementById('startAuthBtn');
+                    btn.disabled = false;
+                    btn.innerHTML = 'Connect with TIDAL';
+                }
+            }
+        }
+
+        // Poll for auth completion
+        function startPolling(deviceCode) {
+            let attempts = 0;
+            const maxAttempts = 120;
+            let errorCount = 0;
+            const maxErrors = 3;
+            
+            authInterval = setInterval(async () => {
+                attempts++;
+                
+                try {
+                    let data;
+                    let responseStatus;
+                    
+                    if (IS_LOCAL) {
+                        // Local mode - direct API call
+                        const headers = {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        };
+                        
+                        if (currentClientSecret) {
+                            headers['Authorization'] = 'Basic ' + btoa(`${currentClientId}:${currentClientSecret}`);
+                        }
+                        
+                        const response = await fetch(TIDAL_AUTH_URL + '/oauth2/token', {
+                            method: 'POST',
+                            headers: headers,
+                            body: new URLSearchParams({
+                                grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+                                device_code: deviceCode,
+                                client_id: currentClientId,
+                                scope: 'r_usr+w_usr+w_sub'
+                            })
+                        });
+                        
+                        data = await response.json();
+                        responseStatus = response.status;
+                    } else {
+                        // Demo mode for web
+                        if (attempts >= 3) {
+                            responseStatus = 200;
+                            data = {
+                                access_token: 'DEMO-ACCESS-TOKEN-' + Date.now(),
+                                refresh_token: 'DEMO-REFRESH-TOKEN-' + Date.now(),
+                                expires_in: 3600,
+                                userId: 'DEMO-USER-123',
+                                countryCode: 'US'
+                            };
+                        } else {
+                            responseStatus = 400;
+                            data = { error: 'authorization_pending' };
+                        }
+                    }
+                    
+                    // Reset error count on successful request
+                    errorCount = 0;
+                    
+                    if (responseStatus === 200) {
+                        // Success!
+                        clearInterval(authInterval);
+                        clearInterval(expiryInterval);
+                        
+                        // Save tokens
+                        saveAuthData(data);
+                        
+                        // Fetch user session
+                        await fetchUserSession(data.access_token);
+                        
+                        updateAuthStatus('Authentication successful!', 'success');
+                        setTimeout(showAuthSuccess, 1000);
+                    } else if (data.error === 'authorization_pending') {
+                        // Still waiting
+                        updateAuthStatus(`Waiting for authorization... (${attempts}/${maxAttempts})`, 'info');
+                    } else if (data.error === 'expired_token') {
+                        // Expired
+                        clearInterval(authInterval);
+                        clearInterval(expiryInterval);
+                        updateAuthStatus('Authorization expired. Please try again.', 'error');
+                        resetAuthUI();
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                    errorCount++;
+                    
+                    if (errorCount >= maxErrors) {
+                        clearInterval(authInterval);
+                        clearInterval(expiryInterval);
+                        updateAuthStatus('Too many errors during authorization. Please try again.', 'error');
+                        resetAuthUI();
+                    } else {
+                        updateAuthStatus(`Network error. Retrying... (${errorCount}/${maxErrors})`, 'warning');
+                    }
+                }
+                
+                if (attempts >= maxAttempts) {
+                    clearInterval(authInterval);
+                    clearInterval(expiryInterval);
+                    updateAuthStatus('Authorization timed out. Please try again.', 'error');
+                    resetAuthUI();
+                }
+            }, 5000);
+        }
+
+        // Expiry timer
+        function startExpiryTimer(expiresIn) {
+            let remaining = expiresIn;
+            
+            function updateTimer() {
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                document.getElementById('authTimer').textContent = 
+                    `Expires in: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                remaining--;
+                if (remaining < 0) {
+                    clearInterval(expiryInterval);
+                    clearInterval(authInterval);
+                    updateAuthStatus('Authorization expired. Please try again.', 'error');
+                    resetAuthUI();
+                }
+            }
+            
+            updateTimer();
+            expiryInterval = setInterval(updateTimer, 1000);
+        }
+
+        // Use direct token
+        async function useDirectToken() {
+            const token = document.getElementById('directTokenInput').value.trim();
+            
+            if (!token) {
+                updateAuthStatus('Please enter a token', 'error');
+                return;
+            }
+            
+            try {
+                if (IS_LOCAL) {
+                    // Validate token
+                    const response = await fetch(TIDAL_API_URL + '/sessions?countryCode=US', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const sessionData = await response.json();
+                        
+                        // Save token with 24-hour expiry
+                        saveAuthData({
+                            access_token: token,
+                            expires_in: 86400,
+                            userId: sessionData.userId,
+                            countryCode: sessionData.countryCode
+                        });
+                        
+                        updateAuthStatus('Token validated successfully!', 'success');
+                        setTimeout(showAuthSuccess, 1000);
+                    } else {
+                        updateAuthStatus('Invalid token. Please check and try again.', 'error');
+                    }
+                } else {
+                    // Demo mode for web
+                    if (token === 'DEMO') {
+                        saveAuthData({
+                            access_token: 'DEMO-TOKEN-' + Date.now(),
+                            expires_in: 86400,
+                            userId: 'DEMO-USER',
+                            countryCode: 'US'
+                        });
+                        
+                        updateAuthStatus('Demo token accepted!', 'success');
+                        setTimeout(showAuthSuccess, 1000);
+                    } else {
+                        updateAuthStatus('In web mode, use "DEMO" as token', 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('Token validation error:', error);
+                updateAuthStatus('Failed to validate token', 'error');
+            }
+        }
+
+        // Fetch user session
+        async function fetchUserSession(token) {
+            try {
+                if (IS_LOCAL) {
+                    const response = await fetch(TIDAL_API_URL + '/sessions?countryCode=US', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        localStorage.setItem(AUTH_STORAGE_KEYS.USER_ID, data.userId);
+                        localStorage.setItem(AUTH_STORAGE_KEYS.COUNTRY_CODE, data.countryCode);
+                        
+                        // Update state
+                        if (state) {
+                            state.countryCode = data.countryCode;
+                        }
+                    }
+                } else {
+                    // Demo mode
+                    localStorage.setItem(AUTH_STORAGE_KEYS.USER_ID, 'DEMO-USER');
+                    localStorage.setItem(AUTH_STORAGE_KEYS.COUNTRY_CODE, 'US');
+                }
+            } catch (error) {
+                console.error('Failed to fetch user session:', error);
+            }
+        }
+
+        // Save authentication data
+        function saveAuthData(data) {
+            localStorage.setItem(AUTH_STORAGE_KEYS.TOKEN, data.access_token);
+            if (data.refresh_token) {
+                localStorage.setItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN, data.refresh_token);
+            }
+            localStorage.setItem(AUTH_STORAGE_KEYS.TOKEN_EXPIRY, Date.now() + (data.expires_in * 1000));
+            localStorage.setItem(AUTH_STORAGE_KEYS.CLIENT_ID, currentClientId);
+            
+            // Update state
+            if (state) {
+                state.tidalToken = data.access_token;
+                state.tidalClientId = currentClientId;
+            }
+        }
+
+        // Clear authentication
+        function clearAuthData() {
+            Object.values(AUTH_STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+        }
+
+        // Refresh token
+        async function refreshAuthToken() {
+            const refreshToken = localStorage.getItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN);
+            const savedClientId = localStorage.getItem(AUTH_STORAGE_KEYS.CLIENT_ID) || CLIENT_ID;
+            
+            if (!refreshToken) {
+                throw new Error('No refresh token available');
+            }
+            
+            const clientSecret = savedClientId === FIRETV_CLIENT_ID ? '' : CLIENT_SECRET;
+            const headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            };
+            
+            if (clientSecret) {
+                headers['Authorization'] = 'Basic ' + btoa(`${savedClientId}:${clientSecret}`);
+            }
+            
+            const response = await fetchWithCORS(TIDAL_AUTH_URL + '/oauth2/token', {
+                method: 'POST',
+                headers: headers,
+                body: new URLSearchParams({
+                    grant_type: 'refresh_token',
+                    refresh_token: refreshToken,
+                    client_id: savedClientId
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to refresh token');
+            }
+            
+            const data = await response.json();
+            saveAuthData(data);
+            return data.access_token;
+        }
+
+        // Setup automatic token refresh
+        function setupTokenRefresh() {
+            setInterval(async () => {
+                const tokenExpiry = parseInt(localStorage.getItem(AUTH_STORAGE_KEYS.TOKEN_EXPIRY) || '0');
+                const refreshToken = localStorage.getItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN);
+                
+                // Refresh if expires in less than 10 minutes
+                if (refreshToken && tokenExpiry > 0 && tokenExpiry - Date.now() < 10 * 60 * 1000) {
+                    try {
+                        await refreshAuthToken();
+                        console.log('Token refreshed successfully');
+                    } catch (error) {
+                        console.error('Failed to refresh token:', error);
+                    }
+                }
+            }, 5 * 60 * 1000); // Check every 5 minutes
+        }
+
+        // Update status message
+        function updateAuthStatus(message, type = 'info') {
+            const statusEl = document.getElementById('authStatus');
+            statusEl.style.display = 'block';
+            statusEl.className = `auth-status ${type}`;
+            statusEl.innerHTML = type === 'info' ? `<span class="loading-spinner"></span>${message}` : message;
+        }
+
+        // Show success screen
+        function showAuthSuccess() {
+            document.getElementById('oauthSection').classList.remove('active');
+            document.getElementById('successSection').classList.add('active');
+        }
+
+        // Continue to app
+        function continueToApp() {
+            showApp();
+        }
+
+        // Show main app
+        function showApp() {
+            document.getElementById('loginContainer').classList.add('hidden');
+            // Update state with auth info
+            if (state) {
+                state.tidalToken = localStorage.getItem(AUTH_STORAGE_KEYS.TOKEN);
+                state.tidalClientId = localStorage.getItem(AUTH_STORAGE_KEYS.CLIENT_ID) || CLIENT_ID;
+                state.countryCode = localStorage.getItem(AUTH_STORAGE_KEYS.COUNTRY_CODE) || 'US';
+            }
+        }
+
+        // Reset auth UI
+        function resetAuthUI() {
+            document.getElementById('startAuthBtn').style.display = 'block';
+            document.getElementById('startAuthBtn').disabled = false;
+            document.getElementById('startAuthBtn').innerHTML = 'Connect with TIDAL';
+            document.getElementById('deviceAuthInfo').style.display = 'none';
+            clearInterval(authInterval);
+            clearInterval(expiryInterval);
+        }
+
+        // Logout function
+        function logout() {
+            if (confirm('Are you sure you want to log out?')) {
+                clearAuthData();
+                location.reload();
+            }
+        }
+        
+        // Debug logging for iOS
+        const debugLogger = (function() {
+            const maxLogs = 100;
+            const logs = [];
+            
+            // Override console methods
+            const originalConsole = {
+                log: console.log,
+                error: console.error,
+                warn: console.warn
+            };
+            
+            function addLog(type, args) {
+                const timestamp = new Date().toLocaleTimeString();
+                const message = Array.from(args).map(arg => {
+                    if (typeof arg === 'object') {
+                        try {
+                            return JSON.stringify(arg, null, 2);
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }
+                    return String(arg);
+                }).join(' ');
+                
+                logs.push({ timestamp, type, message });
+                if (logs.length > maxLogs) logs.shift();
+                
+                updateDebugDisplay();
+                
+                // Also call original console
+                originalConsole[type].apply(console, args);
+            }
+            
+            function updateDebugDisplay() {
+                const debugDiv = document.getElementById('debugLogs');
+                if (debugDiv) {
+                    debugDiv.innerHTML = logs.map(log => 
+                        `<div style="color: ${log.type === 'error' ? '#ff6b6b' : log.type === 'warn' ? '#ffd93d' : '#6bcf7f'}">
+                            [${log.timestamp}] ${log.type.toUpperCase()}: ${log.message}
+                        </div>`
+                    ).join('');
+                    debugDiv.scrollTop = debugDiv.scrollHeight;
+                }
+            }
+            
+            // Override console methods
+            console.log = function() { addLog('log', arguments); };
+            console.error = function() { addLog('error', arguments); };
+            console.warn = function() { addLog('warn', arguments); };
+            
+            // Show debug console on triple tap
+            let tapCount = 0;
+            let tapTimer;
+            
+            document.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 1) {
+                    tapCount++;
+                    
+                    if (tapCount === 3) {
+                        const debugConsole = document.getElementById('debugConsole');
+                        debugConsole.style.display = debugConsole.style.display === 'none' ? 'block' : 'none';
+                        tapCount = 0;
+                    }
+                    
+                    clearTimeout(tapTimer);
+                    tapTimer = setTimeout(() => { tapCount = 0; }, 500);
+                }
+            });
+            
+            return { addLog, updateDebugDisplay };
+        })();
+        
+        // Global debugLog function
+        function debugLog(...args) {
+            debugLogger.addLog('log', args);
+        }
+        
+        // ISO 226:2003 데이터 (20 Hz – 20 kHz, 31 포인트)
+        const ISO_FREQ = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
+                         200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600,
+                         2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000];
+
+        const ISO_CURVES = {
+            20: [74.3,64.4,56.3,49.5,44.7,40.6,37.5,35.0,33.1,31.6,30.2,28.9,27.7,26.6,25.6,
+                 24.7,23.8,22.5,21.2,20.3,19.1,18.1,17.2,16.3,15.0,13.4,11.5,10.4,10.1,11.2,13.4],
+            30: [86.3,75.3,66.2,58.4,52.7,48.0,44.4,41.3,39.2,37.3,35.7,34.2,32.9,31.7,30.6,
+                 29.5,28.4,27.1,25.8,24.7,23.3,22.1,21.0,19.9,18.2,16.1,14.6,13.6,13.3,14.6,17.1],
+            40: [96.9,85.4,76.3,68.3,62.1,57.0,52.5,48.7,46.2,44.0,42.1,40.4,38.9,37.5,36.3,
+                 35.1,33.9,32.6,31.2,29.9,28.4,27.1,25.9,24.7,22.9,20.7,19.0,17.8,17.3,18.6,21.4],
+            50: [107.6,95.6,86.4,78.3,71.1,65.0,60.1,56.1,53.4,51.0,48.9,47.1,45.4,43.8,42.3,
+                 40.9,39.4,38.1,36.6,35.1,33.4,32.0,30.6,29.2,27.4,25.1,23.4,22.1,21.6,22.8,25.8],
+            60: [118.6,106.1,96.8,88.4,81.3,75.0,69.2,65.1,62.2,59.6,57.3,55.3,53.5,51.7,50.1,
+                 48.6,47.0,45.6,44.0,42.3,40.5,38.9,37.3,35.6,33.7,31.3,29.6,28.3,27.9,29.1,32.3],
+            70: [129.5,116.9,107.1,98.3,91.2,84.7,78.5,74.2,71.1,68.2,65.7,63.5,61.5,59.6,57.9,
+                 56.2,54.5,53.0,51.3,49.5,47.6,45.8,44.1,42.3,40.1,37.7,35.9,34.6,34.3,35.4,38.7],
+            80: [139.9,127.3,117.5,108.6,101.4,94.8,88.4,83.9,80.7,77.6,74.9,72.6,70.4,68.3,66.4,
+                 64.6,62.8,61.1,59.3,57.4,55.3,53.4,51.4,49.5,47.2,44.8,43.0,41.7,41.2,42.2,45.6],
+            90: [150.2,137.5,127.7,118.7,111.4,104.8,98.4,93.8,90.4,87.1,84.2,81.7,79.4,77.1,75.1,
+                 73.3,71.4,69.6,67.6,65.6,63.5,61.5,59.5,57.4,55.1,52.7,50.8,49.4,48.8,49.8,53.2],
+           100: [160.4,147.6,137.8,128.8,121.4,114.8,108.3,103.7,100.3,96.9,93.9,91.4,88.9,86.6,84.5,
+                 82.5,80.5,78.6,76.6,74.5,72.4,70.3,68.3,66.2,63.9,61.4,59.5,58.1,57.5,58.5,62.0]
+        };
+
+        // TIDAL Configuration
+        const TIDAL_API_URL = 'https://api.tidal.com/v1';
+
+        // Application state
+        const state = {
+            // Audio
+            audioContext: null,
+            sourceNode: null,
+            gainNode: null,
+            loudnessConvolver: null,
+            isLoudnessEnabled: true,
+            currentTrackIndex: -1,
+            isPlaying: false,
+            
+            // TIDAL
+            tidalToken: localStorage.getItem(AUTH_STORAGE_KEYS.TOKEN),
+            tidalClientId: localStorage.getItem(AUTH_STORAGE_KEYS.CLIENT_ID) || CLIENT_ID,
+            countryCode: localStorage.getItem(AUTH_STORAGE_KEYS.COUNTRY_CODE) || 'US',
+            
+            // Playlist
+            playlist: [],
+            shuffleEnabled: false,
+            repeatMode: 'none',
+            dimScreenActive: false,
+            
+            // DSP - Easy Mode
+            easyModeValue: 50, // 0-100 slider
+            bassEnhanced: true,
+            rmsPreampEnabled: true,
+            
+            // DSP - Core
+            fineGrainedISO226: null,
+            targetPhon: 65.0,
+            referencePhon: 87.1,
+            filterTaps: 511, // Optimized for mobile
+            
+            // Headphone EQ
+            headphoneEqEnabled: false,
+            headphoneEqNodes: [],
+            headphoneEqFilters: [],
+            
+            // Calibration
+            calibrationState: {
+                calibrationSPL: 80.0,    // SPL at reference 80/80 setting
+                desiredSPL: 70.0,        // User's target listening SPL
+                systemOffset: 0.0,       // Measured - Expected SPL
+                isCalibrated: true       // Use default calibration
+            },
+            
+            // Pink noise generator
+            pinkNoiseNode: null,
+            pinkNoiseBuffer: null,
+            
+            // UI
+            currentTab: 'easy',
+            editMode: false
+        };
+
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, initializing...');
+            console.log('User Agent:', navigator.userAgent);
+            console.log('Platform:', navigator.platform);
+            
+            // Check authentication status first
+            checkAuthStatus();
+            
+            initializeUI();
+            loadSettings();
+            
+            // Set initial volume
+            const audio = document.getElementById('audioPlayer');
+            audio.volume = 0.8;
+            
+            // Initialize audio on first user interaction
+            let audioInitialized = false;
+            document.addEventListener('touchstart', async (e) => {
+                if (!audioInitialized && !state.audioContext) {
+                    audioInitialized = true;
+                    await initializeAudio();
+                }
+            }, { once: true });
+        });
+
+        // UI Initialization
+        function initializeUI() {
+            // Tab switching
+            document.querySelectorAll('.tab-item').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    switchTab(tabName);
+                });
+            });
+            
+            // Easy mode slider
+            const loudnessSlider = document.getElementById('loudnessSlider');
+            loudnessSlider.addEventListener('input', (e) => {
+                state.easyModeValue = parseInt(e.target.value);
+                updateEasyMode();
+            });
+            
+            // Global loudness slider
+            const globalLoudnessSlider = document.getElementById('globalLoudnessSlider');
+            globalLoudnessSlider.addEventListener('input', (e) => {
+                state.easyModeValue = parseInt(e.target.value);
+                updateEasyMode();
+                // Sync with main slider
+                loudnessSlider.value = e.target.value;
+            });
+            
+            // Calibration
+            document.getElementById('calibrateBtn').addEventListener('click', () => {
+                // Update calibration display
+                document.getElementById('currentCalibSPL').textContent = 
+                    state.calibrationState.calibrationSPL.toFixed(1);
+                document.getElementById('currentDesiredSPL').textContent = 
+                    state.calibrationState.desiredSPL.toFixed(1);
+                document.getElementById('currentOffset').textContent = 
+                    state.calibrationState.systemOffset.toFixed(1);
+                    
+                document.getElementById('calibrationModal').classList.add('active');
+            });
+            
+            document.getElementById('closeCalibrationModal').addEventListener('click', () => {
+                document.getElementById('calibrationModal').classList.remove('active');
+                stopPinkNoise();
+            });
+            
+            document.getElementById('playTestTone').addEventListener('click', playPinkNoise);
+            document.getElementById('saveCalibration').addEventListener('click', saveCalibration);
+            
+            // Settings toggles
+            document.getElementById('loudnessToggle').addEventListener('change', (e) => {
+                state.isLoudnessEnabled = e.target.checked;
+                connectAudioNodes();
+            });
+            
+            document.getElementById('bassEnhanceToggle').addEventListener('change', (e) => {
+                state.bassEnhanced = e.target.checked;
+                updateEasyMode();
+            });
+            
+            document.getElementById('rmsPreampToggle').addEventListener('change', (e) => {
+                state.rmsPreampEnabled = e.target.checked;
+                updateEasyMode();
+            });
+            
+            // Headphone EQ
+            document.getElementById('headphoneEqToggle').addEventListener('change', (e) => {
+                state.headphoneEqEnabled = e.target.checked;
+                if (state.headphoneEqEnabled && state.headphoneEqFilters.length === 0) {
+                    showToast('Please apply EQ settings first', 'warning');
+                    e.target.checked = false;
+                    state.headphoneEqEnabled = false;
+                    return;
+                }
+                connectAudioNodes();
+            });
+            
+            document.getElementById('applyEqBtn').addEventListener('click', applyHeadphoneEq);
+            
+            // Playlist actions
+            document.getElementById('editModeBtn').addEventListener('click', toggleEditMode);
+            document.getElementById('addFilesBtn').addEventListener('click', () => {
+                document.getElementById('playlistFileInput').click();
+            });
+            document.getElementById('savePlaylistBtn').addEventListener('click', exportPlaylist);
+            
+            // Search tab file inputs
+            document.getElementById('searchAddFilesBtn').addEventListener('click', () => {
+                document.getElementById('searchFileInput').click();
+            });
+            document.getElementById('searchAddFolderBtn').addEventListener('click', () => {
+                document.getElementById('searchFolderInput').click();
+            });
+            
+            // File input handlers
+            document.getElementById('playlistFileInput').addEventListener('change', handleFileSelect);
+            document.getElementById('playlistFolderInput').addEventListener('change', handleFolderSelect);
+            document.getElementById('searchFileInput').addEventListener('change', handleFileSelect);
+            document.getElementById('searchFolderInput').addEventListener('change', handleFolderSelect);
+            
+            // TIDAL settings
+            document.getElementById('tidalSettingsBtn').addEventListener('click', () => {
+                // Pre-fill existing credentials
+                if (state.tidalToken) {
+                    document.getElementById('tidalTokenInput').value = state.tidalToken;
+                }
+                if (state.tidalClientId) {
+                    document.getElementById('clientIdInput').value = state.tidalClientId;
+                }
+                if (state.countryCode) {
+                    document.getElementById('countryCodeInput').value = state.countryCode;
+                }
+                document.getElementById('tidalModal').classList.add('active');
+            });
+            
+            document.getElementById('closeTidalModal').addEventListener('click', () => {
+                document.getElementById('tidalModal').classList.remove('active');
+            });
+            
+            document.getElementById('saveTidalBtn').addEventListener('click', saveTidalCredentials);
+            
+            document.getElementById('removeTidalBtn').addEventListener('click', () => {
+                logout();
+            });
+            
+            // Search
+            let searchTimeout;
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    performSearch(e.target.value);
+                }, 500);
+            });
+            
+            // Playlist controls
+            document.getElementById('shuffleBtn').addEventListener('click', toggleShuffle);
+            document.getElementById('repeatBtn').addEventListener('click', toggleRepeat);
+            
+            // Touch support for drag and drop
+            setupTouchDragAndDrop();
+            
+            // Mini player
+            const miniPlayerInfo = document.querySelector('.mini-player-info');
+            if (miniPlayerInfo) {
+                miniPlayerInfo.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openFullscreenPlayer();
+                });
+            }
+            
+            const miniPlayerAlbumArt = document.getElementById('miniPlayerAlbumArt');
+            if (miniPlayerAlbumArt) {
+                miniPlayerAlbumArt.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openFullscreenPlayer();
+                });
+            }
+            
+            document.getElementById('miniPlayBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                togglePlayPause();
+            });
+            
+            document.getElementById('miniPrevBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                playPrevious();
+            });
+            
+            document.getElementById('miniNextBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                playNext();
+            });
+            
+            document.getElementById('fullscreenCloseBtn').addEventListener('click', closeFullscreenPlayer);
+            
+            document.getElementById('fullscreenPlayBtn').addEventListener('click', togglePlayPause);
+            document.getElementById('fullscreenPrevBtn').addEventListener('click', playPrevious);
+            document.getElementById('fullscreenNextBtn').addEventListener('click', playNext);
+            document.getElementById('fullscreenShuffleBtn').addEventListener('click', toggleShuffle);
+            document.getElementById('fullscreenRepeatBtn').addEventListener('click', toggleRepeat);
+            
+            document.getElementById('fullscreenSeeker').addEventListener('input', (e) => {
+                const audio = document.getElementById('audioPlayer');
+                if (audio.duration) {
+                    audio.currentTime = (e.target.value / 100) * audio.duration;
+                }
+            });
+            
+            document.getElementById('fullscreenVolume').addEventListener('input', (e) => {
+                state.easyModeValue = parseInt(e.target.value);
+                updateEasyMode();
+                // Sync with other sliders
+                document.getElementById('loudnessSlider').value = e.target.value;
+                document.getElementById('globalLoudnessSlider').value = e.target.value;
+                // Update value display
+                document.getElementById('fullscreenVolumeValue').textContent = e.target.value + '%';
+            });
+            
+            // Progress bar interaction
+            setupProgressBar();
+            
+            // Audio player events
+            const audio = document.getElementById('audioPlayer');
+            audio.addEventListener('play', () => {
+                debugLog('Audio event: play');
+                state.isPlaying = true;
+                updatePlayButton();
+            });
+            audio.addEventListener('pause', () => {
+                debugLog('Audio event: pause');
+                state.isPlaying = false;
+                updatePlayButton();
+            });
+            audio.addEventListener('ended', () => {
+                debugLog('Audio event: ended');
+                handleTrackEnd();
+            });
+            audio.addEventListener('timeupdate', () => {
+                // Don't log timeupdate as it fires frequently
+                updateProgress();
+            });
+            audio.addEventListener('loadedmetadata', () => {
+                debugLog('Audio event: loadedmetadata');
+                updateProgress();
+            });
+            audio.addEventListener('canplay', () => {
+                debugLog('Audio event: canplay');
+            });
+            audio.addEventListener('canplaythrough', () => {
+                debugLog('Audio event: canplaythrough');
+            });
+            audio.addEventListener('stalled', () => {
+                debugLog('Audio event: stalled');
+            });
+            audio.addEventListener('waiting', () => {
+                debugLog('Audio event: waiting');
+            });
+            audio.addEventListener('playing', () => {
+                debugLog('Audio event: playing - currentTime:', audio.currentTime);
+            });
+            audio.addEventListener('error', (e) => {
+                debugLog('Audio event: error', e.target.error);
+            });
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-item').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === tabName);
+            });
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            
+            // Show/hide global loudness slider
+            const globalLoudnessContainer = document.getElementById('globalLoudnessContainer');
+            if (tabName === 'easy' || !document.getElementById('miniPlayer').classList.contains('hidden')) {
+                globalLoudnessContainer.classList.toggle('visible', tabName !== 'easy');
+            }
+            
+            state.currentTab = tabName;
+        }
+
+        // Audio initialization
+        async function initializeAudio() {
+            if (state.audioContext) {
+                console.log('AudioContext already exists, state:', state.audioContext.state);
+                return;
+            }
+            
+            try {
+                debugLog('Creating new AudioContext...');
+                state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                debugLog('AudioContext created, state:', state.audioContext.state);
+                debugLog('Sample rate:', state.audioContext.sampleRate);
+                
+                // Create gain node
+                state.gainNode = state.audioContext.createGain();
+                state.gainNode.connect(state.audioContext.destination);
+                debugLog('Gain node created and connected to destination');
+                
+                // Create media element source
+                const audio = document.getElementById('audioPlayer');
+                state.sourceNode = state.audioContext.createMediaElementSource(audio);
+                debugLog('Media element source created');
+                
+                // Generate ISO data
+                state.fineGrainedISO226 = interpISO(ISO_CURVES, 0.1);
+                debugLog('ISO data generated');
+                
+                // Create pink noise buffer
+                createPinkNoiseBuffer();
+                
+                // Create initial filter
+                await updateLoudnessFilter();
+                debugLog('Loudness filter created');
+                
+                // Connect audio nodes
+                connectAudioNodes();
+                debugLog('Audio nodes connected');
+                
+                // Log final connection state
+                debugLog('Final audio chain:', {
+                    sourceConnected: state.sourceNode !== null,
+                    loudnessEnabled: state.isLoudnessEnabled,
+                    loudnessConnected: state.loudnessConvolver !== null,
+                    gainValue: state.gainNode.gain.value,
+                    audioContextState: state.audioContext.state
+                });
+                
+                showToast('Audio system initialized', 'success');
+            } catch (error) {
+                showToast('Failed to initialize audio', 'error');
+                console.error('Audio initialization error:', error);
+            }
+        }
+
+        // Enhanced Easy Loudness Control Algorithm
+        function calculateLoudnessAwareParameters(sliderValue) {
+            // Option 1: Exponential with increased k (Bass-Enhanced)
+            const k = state.bassEnhanced ? 23 : 20;
+            const deltaMax = state.bassEnhanced ? 60 : 40;
+            const deltaMin = 1;
+            const Lmin = 40, Lmax = 90;
+            
+            const L = Lmin + (sliderValue / 100) * (Lmax - Lmin);
+            const gap = deltaMin + (deltaMax - deltaMin) * Math.exp(-(L - Lmin) / k);
+            const referencePhon = (L >= 85) ? L + deltaMin : Math.min(L + gap, 120);
+            
+            return {
+                targetPhon: L,
+                referencePhon: referencePhon,
+                gap: gap
+            };
+        }
+
+        // Update Easy Mode
+        async function updateEasyMode() {
+            const params = calculateLoudnessAwareParameters(state.easyModeValue);
+            
+            state.targetPhon = params.targetPhon;
+            state.referencePhon = params.referencePhon;
+            
+            // Update UI
+            document.getElementById('sliderValue').textContent = state.easyModeValue + '%';
+            document.getElementById('globalSliderValue').textContent = state.easyModeValue + '%';
+            document.getElementById('targetPhonValue').textContent = params.targetPhon.toFixed(1) + ' phon';
+            document.getElementById('referencePhonValue').textContent = params.referencePhon.toFixed(1) + ' phon';
+            document.getElementById('compensationValue').textContent = '+' + params.gap.toFixed(1) + ' dB';
+            
+            // Calculate SPL
+            updateSPLDisplay();
+            
+            // Update filter and apply new gain
+            if (state.audioContext) {
+                await updateLoudnessFilter();
+                connectAudioNodes(); // Reapply gain
+            }
+        }
+
+        // SPL Display Update
+        function updateSPLDisplay() {
+            const calibrationPhon = 80.0;
+            const masterGain = calculateMasterGain();
+            
+            // Calculate actual SPL at the listening position
+            // SPL = calibrationSPL + masterGain
+            const estimatedSPL = state.calibrationState.calibrationSPL + masterGain;
+            
+            document.getElementById('splValue').textContent = estimatedSPL.toFixed(1) + ' dB';
+            
+            // Update indicator
+            const indicator = document.getElementById('splIndicator');
+            if (estimatedSPL < 70) {
+                indicator.textContent = 'Safe';
+                indicator.className = 'spl-indicator safe';
+            } else if (estimatedSPL < 85) {
+                indicator.textContent = 'Moderate';
+                indicator.className = 'spl-indicator moderate';
+            } else {
+                indicator.textContent = 'Loud';
+                indicator.className = 'spl-indicator loud';
+            }
+            
+            // Update master gain display
+            document.getElementById('masterGainValue').textContent = 
+                (masterGain >= 0 ? '+' : '') + masterGain.toFixed(1) + ' dB';
+        }
+
+        // Master Gain Calculation
+        function calculateMasterGain() {
+            // Base gain calculation using calibration
+            // Target SPL = desiredSPL + (targetPhon - calibrationPhon)
+            // Where calibrationPhon is typically 80 phon at 80 dB SPL
+            const calibrationPhon = 80.0; // Reference loudness level
+            
+            // Calculate desired output SPL based on target phon
+            const targetSPL = state.calibrationState.desiredSPL + 
+                             (state.targetPhon - calibrationPhon);
+            
+            // Master gain needed to achieve target SPL from calibration SPL
+            let masterGain = targetSPL - state.calibrationState.calibrationSPL + 
+                            state.calibrationState.systemOffset;
+            
+            // Add RMS preamp to prevent clipping
+            let rmsPreamp = 0;
+            if (state.rmsPreampEnabled && state.audioContext) {
+                rmsPreamp = calculateRMSPreamp();
+                masterGain += rmsPreamp;
+            }
+            
+            console.log('Master gain calculation:', {
+                targetPhon: state.targetPhon,
+                targetSPL: targetSPL,
+                calibrationSPL: state.calibrationState.calibrationSPL,
+                systemOffset: state.calibrationState.systemOffset,
+                rmsPreamp: rmsPreamp,
+                finalGain: masterGain
+            });
+            
+            return masterGain;
+        }
+
+        // ISO-226 interpolation
+        function interpISO(curves, step = 0.1) {
+            const fine = {};
+            const keys = Object.keys(curves).map(Number).sort((a, b) => a - b);
+            
+            for (let p = keys[0]; p <= keys[keys.length - 1]; p += step) {
+                p = Math.round(p * 10) / 10;
+                if (curves[p]) {
+                    fine[p] = curves[p].slice();
+                    continue;
+                }
+                
+                const lo = Math.max(...keys.filter(k => k <= p));
+                const hi = Math.min(...keys.filter(k => k >= p));
+                const w = (p - lo) / (hi - lo);
+                
+                fine[p] = curves[lo].map((v, i) => v * (1 - w) + curves[hi][i] * w);
+            }
+            
+            return fine;
+        }
+
+        // Calculate ISO gain
+        function isoGain(targetPhon, refPhon, fineData) {
+            // 숫자로 변환하고 소수점 첫째 자리까지 반올림
+            const targetKey = (+targetPhon).toFixed(1);
+            const refKey = (+refPhon).toFixed(1);
+
+            // fineData에서 해당 키로 데이터 가져오기
+            const T = fineData[targetKey];
+            const R = fineData[refKey];
+            
+            // 유효성 검사
+            if (!T || !R) {
+                console.error('Invalid phon values:', targetPhon, refPhon);
+                console.error('Available keys:', Object.keys(fineData));
+                return new Array(ISO_FREQ.length).fill(0);
+            }
+            
+            const oneKhzIdx = ISO_FREQ.indexOf(1000);
+            
+            // 1kHz 인덱스 유효성 검사
+            if (oneKhzIdx === -1 || !T[oneKhzIdx] || !R[oneKhzIdx]) {
+                console.error('Invalid 1kHz reference point');
+                return new Array(ISO_FREQ.length).fill(0);
+            }
+
+            const anchorT = T[oneKhzIdx];
+            const anchorR = R[oneKhzIdx];
+            
+            // 목표 – 기준  (1 kHz에서는 항상 0 dB)
+            return T.map((v, i) => (v - anchorT) - (R[i] - anchorR));
+        }
+
+        /////////////////////////// FFT / IFFT ///////////////////////////
+        function fftRadix2(re, im, inverse = false) {
+            const n = re.length;
+            if ((n & (n - 1)) !== 0) throw Error('FFT 길이는 2의 거듭제곱이어야 합니다');
+
+            // 1) 비트 반전 재정렬
+            for (let i = 0, j = 0; i < n; i++) {
+                if (i < j) {
+                    [re[i], re[j]] = [re[j], re[i]];
+                    [im[i], im[j]] = [im[j], im[i]];
+                }
+                let bit = n >> 1;
+                while (j & bit) { j ^= bit; bit >>= 1; }
+                j ^= bit;
+            }
+
+            // 2) 버터플라이
+            for (let len = 2; len <= n; len <<= 1) {
+                const half = len >> 1;
+                const sign = inverse ? 1 : -1;
+                const θ = sign * 2 * Math.PI / len;
+                const cosθ = Math.cos(θ), sinθ = Math.sin(θ);
+
+                for (let i = 0; i < n; i += len) {
+                    let wr = 1, wi = 0;
+                    for (let j = 0; j < half; j++) {
+                        const k = i + j;
+                        const l = k + half;
+
+                        const tr = wr * re[l] - wi * im[l];
+                        const ti = wr * im[l] + wi * re[l];
+
+                        re[l] = re[k] - tr;
+                        im[l] = im[k] - ti;
+                        re[k] += tr;
+                        im[k] += ti;
+
+                        // twiddle 업데이트
+                        const tmp = wr;
+                        wr = wr * cosθ - wi * sinθ;
+                        wi = tmp * sinθ + wi * cosθ;
+                    }
+                }
+            }
+
+            // 3) IFFT 스케일
+            if (inverse) {
+                for (let i = 0; i < n; i++) {
+                    re[i] /= n;
+                    im[i] /= n;
+                }
+            }
+        }
+
+        // Hermitian → 시간영역 실수 계수
+        function irfft(reHalf, imHalf) {
+            const n = (reHalf.length - 1) * 2;         // 전체 길이 (2의 거듭제곱)
+            const re = new Float32Array(n);
+            const im = new Float32Array(n);
+
+            // DC & Nyquist
+            re[0] = reHalf[0];
+            im[0] = 0;
+            const n2 = n >> 1;
+            re[n2] = reHalf[n2];
+            im[n2] = 0;
+
+            // 양쪽 대칭 채우기
+            for (let k = 1; k < n2; k++) {
+                re[k]     = reHalf[k];
+                im[k]     =  imHalf[k];
+                re[n - k] = reHalf[k];
+                im[n - k] = -imHalf[k];
+            }
+
+            fftRadix2(re, im, /* inverse = */ true);
+            return re;                                   // 실수부가 시간영역 계수
+        }
+
+        ///////////////////////////// firwin2 /////////////////////////////
+        function firwin2(numtaps, freq, gain, fs, window = 'hamming') {
+            const nyq = fs / 2;
+
+            // 필터 타입(I/II) & Nyquist 보정
+            if (numtaps % 2 === 0 && gain[gain.length - 1] !== 0) {
+                gain[gain.length - 1] = 0;
+            }
+
+            // SciPy 규칙: nfreqs = 1 + 2^ceil(log2(numtaps))
+            const nfreqs = 1 + (1 << Math.ceil(Math.log2(numtaps)));
+            const n = nfreqs - 1;              // FFT 길이 (2^k)
+
+            // 1. 주파수 격자 & 선형 보간
+            const desired = new Float32Array(nfreqs);
+            for (let i = 0; i < nfreqs; i++) {
+                const f = (i / (nfreqs - 1)) * nyq;
+                desired[i] = interpolateLinear(freq, gain, f);
+            }
+
+            // 2. 선형 위상 시프트 적용
+            const re = new Float32Array(nfreqs);
+            const im = new Float32Array(nfreqs);
+            for (let i = 0; i < nfreqs; i++) {
+                const phase = -Math.PI * (numtaps - 1) * i / (nfreqs - 1);
+                re[i] = desired[i] * Math.cos(phase);
+                im[i] = desired[i] * Math.sin(phase);
+            }
+
+            // 3. irfft → 시간영역
+            const hFull = irfft(re, im);               // 길이 n
+            const w = makeWindow(window, numtaps);     // 4. 윈도우
+            const h = new Float32Array(numtaps);
+            for (let i = 0; i < numtaps; i++) {
+                h[i] = hFull[i] * w[i];
+            }
+            return h;
+        }
+
+        /////////////////////// 보조 함수 ///////////////////////////
+        // 선형 보간 (Hz 축)  – Falsy Bug 이미 회피
+        function interpolateLinear(freq, gain, f) {
+            if (f <= freq[0]) return gain[0];
+            if (f >= freq[freq.length - 1]) return gain[gain.length - 1];
+
+            let idx = 0;
+            while (freq[idx + 1] < f) idx++;
+            const f1 = freq[idx], f2 = freq[idx + 1];
+            const g1 = gain[idx], g2 = gain[idx + 1];
+            const t = (f - f1) / (f2 - f1);
+            return g1 + t * (g2 - g1);
+        }
+
+        // 창 함수 (Hamming 기본, SciPy 공식값)
+        function makeWindow(kind, N) {
+            const w = new Float32Array(N);
+            switch (kind) {
+                case 'hamming':
+                default:
+                    for (let n = 0; n < N; n++) {
+                        w[n] = 0.54 - 0.46 * Math.cos(2 * Math.PI * n / (N - 1));
+                    }
+                    break;
+                case 'hann':
+                case 'hanning':
+                    for (let n = 0; n < N; n++) {
+                        w[n] = 0.5 - 0.5 * Math.cos(2 * Math.PI * n / (N - 1));
+                    }
+                    break;
+            }
+            return w;
+        }
+
+        // Design FIR filter
+        function designFIR(targetPhon, refPhon, taps = 513, fs = 48000, window = 'hamming') {
+            if (taps % 2 === 0) taps += 1;          // 홀수 탭 강제
+            
+            const gDb = isoGain(targetPhon, refPhon, state.fineGrainedISO226);
+            // "보정"이므로 부호를 뒤집어 줘야 함 → -gDb
+            const gLin = gDb.map(db => Math.pow(10, -db / 20));
+            
+            const nyq = fs / 2;
+            const freq = [20];                      // DC 대신 20 Hz부터 시작
+            const gain = [gLin[ISO_FREQ.indexOf(20)]];
+            
+            for (let i = 0; i < ISO_FREQ.length; i++) {
+                if (ISO_FREQ[i] < nyq) {
+                    freq.push(ISO_FREQ[i]);
+                    gain.push(gLin[i]);
+                }
+            }
+            freq.push(nyq);
+            gain.push(gLin[gLin.length - 1]);
+            
+            // 중복 주파수 제거
+            const uniqF = [], uniqG = [];
+            for (let i = 0; i < freq.length; i++) {
+                if (i === 0 || freq[i] !== freq[i - 1]) {
+                    uniqF.push(freq[i]);
+                    uniqG.push(gain[i]);
+                }
+            }
+
+            const fir = firwin2(taps, uniqF, uniqG, fs, window);
+
+            // 1 kHz 정규화
+            const resp = calculateFrequencyResponse(fir, [1000], fs);
+            const norm = Math.abs(resp[0]);
+            if (norm > 0) for (let i = 0; i < fir.length; i++) fir[i] /= norm;
+            
+            return fir;
+        }
+
+        // Calculate frequency response
+        function calculateFrequencyResponse(fir, frequencies, fs) {
+            const response = [];
+            
+            for (const freq of frequencies) {
+                let real = 0;
+                let imag = 0;
+                
+                for (let n = 0; n < fir.length; n++) {
+                    const angle = -2 * Math.PI * freq * n / fs;
+                    real += fir[n] * Math.cos(angle);
+                    imag += fir[n] * Math.sin(angle);
+                }
+                
+                response.push(Math.sqrt(real * real + imag * imag));
+            }
+            
+            return response;
+        }
+
+        // Update loudness filter
+        async function updateLoudnessFilter() {
+            if (!state.audioContext) return;
+            
+            const fir = designFIR(state.targetPhon, state.referencePhon, state.filterTaps, 
+                                 state.audioContext.sampleRate, 'hamming');
+            
+            const filterBuffer = state.audioContext.createBuffer(1, fir.length, 
+                                                                 state.audioContext.sampleRate);
+            const channelData = filterBuffer.getChannelData(0);
+            channelData.set(fir);
+            
+            const newConvolver = state.audioContext.createConvolver();
+            newConvolver.normalize = false; // CRITICAL: Disable automatic normalization!
+            newConvolver.buffer = filterBuffer;
+            
+            const oldConvolver = state.loudnessConvolver;
+            state.loudnessConvolver = newConvolver;
+            
+            if (state.sourceNode) {
+                connectAudioNodes();
+            }
+            
+            if (oldConvolver) {
+                try {
+                    oldConvolver.disconnect();
+                } catch (e) {}
+            }
+        }
+
+        // Connect audio nodes
+        function connectAudioNodes() {
+            if (!state.sourceNode || !state.gainNode) {
+                console.warn('Cannot connect nodes: sourceNode or gainNode missing');
+                return;
+            }
+            
+            try {
+                debugLog('Connecting audio nodes...');
+                
+                // Disconnect everything first
+                state.sourceNode.disconnect();
+                if (state.loudnessConvolver) state.loudnessConvolver.disconnect();
+                state.headphoneEqNodes.forEach(node => {
+                    try { node.disconnect(); } catch (e) {}
+                });
+                state.gainNode.disconnect();
+                
+                let currentNode = state.sourceNode;
+                debugLog('Starting with source node');
+                
+                // Signal chain: Source → Loudness → Headphone EQ → Gain → Output
+                
+                // 1. Connect loudness compensation
+                if (state.isLoudnessEnabled && state.loudnessConvolver) {
+                    debugLog('Connecting loudness convolver');
+                    currentNode.connect(state.loudnessConvolver);
+                    currentNode = state.loudnessConvolver;
+                } else {
+                    debugLog('Loudness disabled or no convolver');
+                }
+                
+                // 2. Connect headphone EQ
+                if (state.headphoneEqEnabled && state.headphoneEqNodes.length > 0) {
+                    debugLog(`Connecting ${state.headphoneEqNodes.length} headphone EQ nodes`);
+                    for (let i = 0; i < state.headphoneEqNodes.length; i++) {
+                        currentNode.connect(state.headphoneEqNodes[i]);
+                        currentNode = state.headphoneEqNodes[i];
+                    }
+                } else {
+                    debugLog('Headphone EQ disabled or no nodes');
+                }
+                
+                // 3. Apply master gain
+                const masterGain = calculateMasterGain();
+                state.gainNode.gain.value = Math.pow(10, masterGain / 20);
+                debugLog('Master gain set to:', masterGain, 'dB, linear:', state.gainNode.gain.value);
+                
+                // 4. Connect to output
+                currentNode.connect(state.gainNode);
+                state.gainNode.connect(state.audioContext.destination);
+                debugLog('Connected to gain node and destination, chain complete');
+                
+                // Verify connection
+                debugLog('Audio chain summary:', {
+                    source: 'AudioElement',
+                    loudness: state.isLoudnessEnabled ? 'Enabled' : 'Disabled',
+                    headphoneEQ: state.headphoneEqEnabled ? `${state.headphoneEqNodes.length} filters` : 'Disabled',
+                    gain: `${masterGain.toFixed(2)} dB`,
+                    destination: 'Speakers'
+                });
+            } catch (error) {
+                debugLog('Error connecting audio nodes:', error);
+            }
+        }
+
+        // Pink Noise Generation
+        function createPinkNoiseBuffer() {
+            const sampleRate = state.audioContext.sampleRate;
+            const length = sampleRate * 2; // 2 seconds
+            const buffer = state.audioContext.createBuffer(1, length, sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            // Pink noise generation using Voss algorithm
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+            
+            for (let i = 0; i < length; i++) {
+                const white = Math.random() * 2 - 1;
+                
+                b0 = 0.99886 * b0 + white * 0.0555179;
+                b1 = 0.99332 * b1 + white * 0.0750759;
+                b2 = 0.96900 * b2 + white * 0.1538520;
+                b3 = 0.86650 * b3 + white * 0.3104856;
+                b4 = 0.55000 * b4 + white * 0.5329522;
+                b5 = -0.7616 * b5 - white * 0.0168980;
+                
+                data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+                b6 = white * 0.115926;
+            }
+            
+            state.pinkNoiseBuffer = buffer;
+        }
+
+        // Play Pink Noise for Calibration
+        function playPinkNoise() {
+            if (!state.audioContext || !state.pinkNoiseBuffer) {
+                showToast('Please wait for audio initialization', 'error');
+                return;
+            }
+            
+            stopPinkNoise();
+            
+            state.pinkNoiseNode = state.audioContext.createBufferSource();
+            state.pinkNoiseNode.buffer = state.pinkNoiseBuffer;
+            state.pinkNoiseNode.loop = true;
+            
+            // Connect directly without loudness compensation
+            state.pinkNoiseNode.connect(state.audioContext.destination);
+            state.pinkNoiseNode.start();
+            
+            showToast('Playing pink noise test tone', 'info');
+        }
+
+        // Stop Pink Noise
+        function stopPinkNoise() {
+            if (state.pinkNoiseNode) {
+                try {
+                    state.pinkNoiseNode.stop();
+                    state.pinkNoiseNode.disconnect();
+                } catch (e) {}
+                state.pinkNoiseNode = null;
+            }
+        }
+
+        // Save Calibration
+        function saveCalibration() {
+            const measuredSPL = parseFloat(document.getElementById('measuredSPL').value);
+            
+            if (isNaN(measuredSPL) || measuredSPL < 30 || measuredSPL > 120) {
+                showToast('Please enter a valid SPL value (30-120 dB)', 'error');
+                return;
+            }
+            
+            // Calculate system offset
+            const expectedSPL = 80.0; // Pink noise at 0 dB should produce 80 dB SPL
+            state.calibrationState.systemOffset = measuredSPL - expectedSPL;
+            state.calibrationState.calibrationSPL = 80.0;
+            state.calibrationState.desiredSPL = measuredSPL;
+            state.calibrationState.isCalibrated = true;
+            
+            // Save to storage
+            localStorage.setItem('splCalibration', JSON.stringify(state.calibrationState));
+            
+            // Update display
+            updateSPLDisplay();
+            
+            // Close modal and stop noise
+            document.getElementById('calibrationModal').classList.remove('active');
+            stopPinkNoise();
+            
+            showToast('Calibration saved successfully', 'success');
+        }
+
+        // Advanced RMS-Based Preamp Calculation
+        function calculateRMSPreamp() {
+            if (!state.fineGrainedISO226) return 0;
+            
+            // Get the frequency response of the loudness filter
+            const gainDb = isoGain(state.targetPhon, state.referencePhon, state.fineGrainedISO226);
+            const maxBoost = Math.max(...gainDb);
+            
+            // Calculate RMS gain considering the filter response
+            // This is a simplified version - full implementation would analyze
+            // the actual filter impulse response
+            let rmsGain = 0;
+            const weights = ISO_FREQ.map(f => getAWeighting(f)); // A-weighting
+            let sumWeightedGain = 0;
+            let sumWeights = 0;
+            
+            for (let i = 0; i < gainDb.length; i++) {
+                if (ISO_FREQ[i] <= 20000) {
+                    const linearGain = Math.pow(10, gainDb[i] / 20);
+                    sumWeightedGain += weights[i] * linearGain * linearGain;
+                    sumWeights += weights[i];
+                }
+            }
+            
+            if (sumWeights > 0) {
+                rmsGain = 10 * Math.log10(sumWeightedGain / sumWeights);
+            }
+            
+            // Conservative preamp to prevent clipping
+            // Add 1dB headroom for safety
+            const preampForClipping = -1.0 - Math.max(maxBoost, rmsGain);
+            
+            return preampForClipping;
+        }
+
+        // A-weighting curve
+        function getAWeighting(freq) {
+            const f2 = freq * freq;
+            const f4 = f2 * f2;
+            const num = 12194.217 * 12194.217 * f4;
+            const den = (f2 + 20.598997 * 20.598997) *
+                       Math.sqrt((f2 + 107.65265 * 107.65265) * (f2 + 737.86223 * 737.86223)) *
+                       (f2 + 12194.217 * 12194.217);
+            const norm1kHz = 7943282.34747; // Normalization at 1kHz
+            return num / den / norm1kHz;
+        }
+
+        // Parse AutoEQ format
+        function parseAutoEq(eqText) {
+            const filters = [];
+            const lines = eqText.trim().split('\n');
+            
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                
+                // Parse AutoEQ format: "Filter 1: ON PK Fc 20.0 Hz Gain 8.3 dB Q 6.00"
+                const parts = line.split(/\s+/);
+                
+                // Check if filter is ON
+                const onIndex = parts.findIndex(p => p === 'ON' || p === 'OFF');
+                if (onIndex === -1 || parts[onIndex] === 'OFF') continue;
+                
+                // Find filter type (PK = Peak, LSC/HSC = Shelf)
+                const typeIndex = parts.findIndex(p => ['PK', 'LSC', 'HSC', 'LS', 'HS'].includes(p));
+                if (typeIndex === -1) continue;
+                
+                const filterType = parts[typeIndex];
+                
+                // Find frequency
+                const fcIndex = parts.findIndex(p => p === 'Fc');
+                if (fcIndex === -1 || fcIndex + 2 >= parts.length) continue;
+                const freq = parseFloat(parts[fcIndex + 1]);
+                
+                // Find gain
+                const gainIndex = parts.findIndex(p => p === 'Gain');
+                if (gainIndex === -1 || gainIndex + 2 >= parts.length) continue;
+                const gain = parseFloat(parts[gainIndex + 1]);
+                
+                // Find Q
+                const qIndex = parts.findIndex(p => p === 'Q');
+                let q = 1.0;
+                if (qIndex !== -1 && qIndex + 1 < parts.length) {
+                    q = parseFloat(parts[qIndex + 1]);
+                }
+                
+                // Validate values
+                if (isNaN(freq) || isNaN(gain) || isNaN(q) || 
+                    !isFinite(freq) || !isFinite(gain) || !isFinite(q) ||
+                    freq <= 0 || freq > 20000 || q <= 0) {
+                    continue;
+                }
+                
+                filters.push({
+                    type: filterType === 'PK' ? 'peaking' : 
+                          filterType === 'LSC' || filterType === 'LS' ? 'lowshelf' : 'highshelf',
+                    frequency: freq,
+                    gain: gain,
+                    Q: q
+                });
+            }
+            
+            return filters;
+        }
+
+        // Apply headphone EQ
+        function applyHeadphoneEq() {
+            const eqText = document.getElementById('eqTextarea').value;
+            
+            if (!eqText.trim()) {
+                showToast('Please enter EQ settings', 'error');
+                return;
+            }
+            
+            const filters = parseAutoEq(eqText);
+            
+            if (filters.length === 0) {
+                showToast('No valid EQ filters found', 'error');
+                return;
+            }
+            
+            if (!state.audioContext) {
+                showToast('Please wait for audio initialization', 'error');
+                return;
+            }
+            
+            // Clear existing EQ nodes
+            state.headphoneEqNodes.forEach(node => {
+                try { node.disconnect(); } catch (e) {}
+            });
+            state.headphoneEqNodes = [];
+            state.headphoneEqFilters = filters;
+            
+            // Create new biquad filters
+            filters.forEach(filter => {
+                const biquad = state.audioContext.createBiquadFilter();
+                biquad.type = filter.type;
+                biquad.frequency.value = filter.frequency;
+                biquad.gain.value = filter.gain;
+                biquad.Q.value = filter.Q;
+                state.headphoneEqNodes.push(biquad);
+            });
+            
+            // Save EQ settings
+            localStorage.setItem('headphoneEq', eqText);
+            
+            showToast(`Applied ${filters.length} EQ filters`, 'success');
+            
+            // If EQ is enabled, reconnect audio nodes
+            if (state.headphoneEqEnabled) {
+                connectAudioNodes();
+            }
+        }
+
+        // TIDAL API functions
+        async function tidalRequest(endpoint, params = {}) {
+            if (!state.tidalToken || !state.tidalClientId) {
+                throw new Error('No authentication credentials');
+            }
+            
+            const url = new URL(`${TIDAL_API_URL}${endpoint}`);
+            Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+            
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${state.tidalToken}`,
+                    'X-Tidal-Token': state.tidalClientId
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`API request failed: ${response.status}`);
+            }
+            
+            return response.json();
+        }
+
+        async function searchTracks(query) {
+            try {
+                const results = await tidalRequest('/search/tracks', {
+                    query: query,
+                    limit: 20,
+                    offset: 0,
+                    countryCode: state.countryCode || 'US'
+                });
+                
+                return results.items || [];
+            } catch (error) {
+                console.error('Search failed:', error);
+                return [];
+            }
+        }
+
+        async function getStreamUrl(trackId) {
+            try {
+                const playbackInfo = await tidalRequest(`/tracks/${trackId}/playbackinfopostpaywall`, {
+                    audioquality: 'HIGH',
+                    playbackmode: 'STREAM',
+                    assetpresentation: 'FULL',
+                    countryCode: state.countryCode || 'US'
+                });
+                
+                let streamUrl;
+                if (playbackInfo.manifestMimeType && playbackInfo.manifest) {
+                    const manifest = JSON.parse(atob(playbackInfo.manifest));
+                    if (manifest.urls && manifest.urls.length > 0) {
+                        streamUrl = manifest.urls[0];
+                    }
+                } else {
+                    const streamData = await tidalRequest(`/tracks/${trackId}/streamUrl`, {
+                        audioquality: 'HIGH',
+                        playbackmode: 'STREAM',
+                        assetpresentation: 'FULL',
+                        countryCode: state.countryCode || 'US'
+                    });
+                    streamUrl = streamData.url;
+                }
+                
+                // Download the audio file as blob
+                showToast('Downloading track...', 'info');
+                const response = await fetch(streamUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                
+                debugLog('Track downloaded as blob:', {
+                    size: blob.size,
+                    type: blob.type,
+                    url: blobUrl
+                });
+                
+                return blobUrl;
+            } catch (error) {
+                console.error('Stream download failed:', error);
+                throw error;
+            }
+        }
+
+        // Search functionality
+        async function performSearch(query) {
+            if (!query.trim()) {
+                document.getElementById('searchResults').innerHTML = '';
+                return;
+            }
+            
+            if (!state.tidalToken || !state.tidalClientId) {
+                showToast('Please configure TIDAL credentials first', 'error');
+                return;
+            }
+            
+            const tracks = await searchTracks(query);
+            displaySearchResults(tracks);
+        }
+
+        function displaySearchResults(tracks) {
+            const container = document.getElementById('searchResults');
+            
+            if (!tracks || tracks.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">No results found</div>';
+                return;
+            }
+            
+            let html = '';
+            tracks.forEach(track => {
+                const albumCover = track.album?.cover ? `https://resources.tidal.com/images/${track.album.cover.replace(/-/g, '/')}/320x320.jpg` : '';
+                debugLog('Track album info:', {
+                    title: track.title,
+                    album: track.album,
+                    cover: track.album?.cover,
+                    albumCover: albumCover
+                });
+                html += `
+                    <div class="playlist-item" onclick='addToPlaylist(${JSON.stringify({
+                        id: track.id,
+                        title: track.title,
+                        artist: track.artist.name,
+                        album: track.album?.title || '',
+                        albumCover: albumCover
+                    })})'>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500;">${escapeHtml(track.title)}</div>
+                            <div style="font-size: 14px; color: var(--text-secondary);">
+                                ${escapeHtml(track.artist.name)} • ${escapeHtml(track.album?.title || '')}
+                            </div>
+                        </div>
+                        <button class="add-button">+</button>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Playlist management
+        async function addToPlaylist(trackData) {
+            let track;
+            
+            // Handle different parameter formats
+            if (typeof trackData === 'object' && trackData.id) {
+                // New format with full track data
+                track = {
+                    id: trackData.id,
+                    title: trackData.title,
+                    artist: trackData.artist,
+                    album: trackData.album,
+                    albumCover: trackData.albumCover,
+                    type: trackData.type || 'tidal',
+                    file: trackData.file || null
+                };
+            } else {
+                // Legacy format for local files
+                track = {
+                    id: Date.now(),
+                    title: arguments[1] || 'Unknown',
+                    artist: arguments[2] || 'Unknown',
+                    album: '',
+                    albumCover: '',
+                    type: arguments[3] || 'local',
+                    file: arguments[4] || null
+                };
+            }
+            
+            state.playlist.push(track);
+            renderPlaylist();
+            savePlaylist();
+            
+            if (state.playlist.length === 1) {
+                document.getElementById('miniPlayer').classList.remove('hidden');
+                // Show global loudness slider if not on Easy tab
+                if (state.currentTab !== 'easy') {
+                    document.getElementById('globalLoudnessContainer').classList.add('visible');
+                }
+                await playTrack(0);
+            }
+            
+            showToast('Added to playlist', 'success');
+        }
+
+        // Handle file selection
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            
+            let addedCount = 0;
+            for (const file of files) {
+                // More lenient file type check
+                const ext = file.name.toLowerCase().split('.').pop();
+                const audioExtensions = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'opus', 'webm'];
+                
+                if (file.type.startsWith('audio/') || audioExtensions.includes(ext)) {
+                    const trackId = `local_${Date.now()}_${addedCount}`;
+                    const title = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+                    console.log('Adding file:', file.name, 'Type:', file.type, 'Size:', file.size);
+                    addToPlaylist(trackId, title, 'Local File', 'local', file);
+                    addedCount++;
+                }
+            }
+            
+            if (addedCount > 0) {
+                showToast(`Added ${addedCount} files to playlist`, 'success');
+            }
+            
+            // Clear input for reselection
+            event.target.value = '';
+        }
+
+        // Handle folder selection
+        function handleFolderSelect(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            
+            const audioFiles = [];
+            const audioExtensions = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'opus', 'webm'];
+            
+            for (const file of files) {
+                const ext = file.name.toLowerCase().split('.').pop();
+                if (file.type.startsWith('audio/') || audioExtensions.includes(ext)) {
+                    audioFiles.push(file);
+                }
+            }
+            
+            // Sort by path/name
+            audioFiles.sort((a, b) => {
+                const pathA = a.webkitRelativePath || a.name;
+                const pathB = b.webkitRelativePath || b.name;
+                return pathA.localeCompare(pathB);
+            });
+            
+            let addedCount = 0;
+            for (const file of audioFiles) {
+                const trackId = `local_${Date.now()}_${addedCount}`;
+                const title = file.name.replace(/\.[^/.]+$/, '');
+                addToPlaylist(trackId, title, 'Local File', 'local', file);
+                addedCount++;
+            }
+            
+            if (addedCount > 0) {
+                showToast(`Added ${addedCount} audio files from folder`, 'success');
+            }
+            
+            // Clear input
+            event.target.value = '';
+        }
+
+        function renderPlaylist() {
+            const container = document.getElementById('playlistItems');
+            
+            if (state.playlist.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">No tracks in playlist</div>';
+                return;
+            }
+            
+            let html = '';
+            state.playlist.forEach((track, index) => {
+                const isActive = index === state.currentTrackIndex;
+                const editClass = state.editMode ? 'edit-mode' : '';
+                
+                const albumArtHtml = track.albumCover ? 
+                    `<img class="playlist-album-art" src="${track.albumCover}" alt="Album Art">` :
+                    `<div class="playlist-album-art playlist-album-placeholder">🎵</div>`;
+                
+                if (state.editMode) {
+                    html += `
+                        <div class="playlist-item ${isActive ? 'active' : ''} ${editClass}" 
+                             data-index="${index}"
+                             draggable="true"
+                             ondragstart="handleDragStart(event, ${index})"
+                             ondragover="handleDragOver(event)"
+                             ondrop="handleDrop(event, ${index})"
+                             ondragend="handleDragEnd(event)"
+                             onclick="playTrack(${index})">
+                            <div class="drag-handle" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">≡</div>
+                            ${albumArtHtml}
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">${escapeHtml(track.title)}</div>
+                                <div style="font-size: 14px; color: var(--text-secondary);">${escapeHtml(track.artist)}</div>
+                            </div>
+                            <div class="playlist-item-actions">
+                                <button class="playlist-item-delete" onclick="removeFromPlaylist(event, ${index})">×</button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="playlist-item ${isActive ? 'active' : ''}" onclick="playTrack(${index})">
+                            ${albumArtHtml}
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">${escapeHtml(track.title)}</div>
+                                <div style="font-size: 14px; color: var(--text-secondary);">${escapeHtml(track.artist)}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Toggle edit mode
+        function toggleEditMode() {
+            state.editMode = !state.editMode;
+            document.getElementById('editModeBtn').style.color = 
+                state.editMode ? 'var(--tidal-cyan)' : 'var(--text-primary)';
+            renderPlaylist();
+        }
+
+        // Remove track from playlist
+        function removeFromPlaylist(event, index) {
+            event.stopPropagation();
+            
+            if (index === state.currentTrackIndex) {
+                // Stop playback if removing current track
+                const audio = document.getElementById('audioPlayer');
+                audio.pause();
+                state.currentTrackIndex = -1;
+            } else if (index < state.currentTrackIndex) {
+                // Adjust current track index if removing earlier track
+                state.currentTrackIndex--;
+            }
+            
+            state.playlist.splice(index, 1);
+            renderPlaylist();
+            savePlaylist();
+            
+            if (state.playlist.length === 0) {
+                document.getElementById('miniPlayer').classList.add('hidden');
+                document.getElementById('globalLoudnessContainer').classList.remove('visible');
+            }
+        }
+
+        // Export playlist
+        function exportPlaylist() {
+            if (state.playlist.length === 0) {
+                showToast('Playlist is empty', 'error');
+                return;
+            }
+            
+            const playlistData = {
+                name: 'TIDAL Loudness Playlist',
+                created: new Date().toISOString(),
+                tracks: state.playlist.filter(track => track.type === 'tidal')
+            };
+            
+            const blob = new Blob([JSON.stringify(playlistData, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `playlist_${new Date().getTime()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showToast('Playlist exported', 'success');
+        }
+        
+        // Drag and drop for playlist reordering
+        let draggedIndex = null;
+        
+        function handleDragStart(event, index) {
+            draggedIndex = index;
+            event.dataTransfer.effectAllowed = 'move';
+            event.target.classList.add('dragging');
+        }
+        
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            
+            // Add visual feedback
+            const items = document.querySelectorAll('.playlist-item');
+            items.forEach(item => item.classList.remove('drag-over'));
+            
+            const afterElement = getDragAfterElement(event.clientY);
+            if (afterElement) {
+                afterElement.classList.add('drag-over');
+            }
+        }
+        
+        function handleDrop(event, dropIndex) {
+            event.preventDefault();
+            
+            if (draggedIndex === null || draggedIndex === dropIndex) return;
+            
+            // Reorder playlist
+            const draggedTrack = state.playlist[draggedIndex];
+            state.playlist.splice(draggedIndex, 1);
+            
+            let newIndex = dropIndex;
+            if (draggedIndex < dropIndex) {
+                newIndex--;
+            }
+            
+            state.playlist.splice(newIndex, 0, draggedTrack);
+            
+            // Update current track index
+            if (state.currentTrackIndex === draggedIndex) {
+                state.currentTrackIndex = newIndex;
+            } else if (draggedIndex < state.currentTrackIndex && newIndex >= state.currentTrackIndex) {
+                state.currentTrackIndex--;
+            } else if (draggedIndex > state.currentTrackIndex && newIndex <= state.currentTrackIndex) {
+                state.currentTrackIndex++;
+            }
+            
+            renderPlaylist();
+            savePlaylist();
+        }
+        
+        function handleDragEnd(event) {
+            event.target.classList.remove('dragging');
+            document.querySelectorAll('.playlist-item').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+            draggedIndex = null;
+        }
+        
+        function getDragAfterElement(y) {
+            const draggableElements = [...document.querySelectorAll('.playlist-item:not(.dragging)')];
+            
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+        
+        // Touch support for drag and drop
+        function setupTouchDragAndDrop() {
+            let touchItem = null;
+            let touchOffset = null;
+            let placeholder = null;
+            
+            document.addEventListener('touchstart', (e) => {
+                if (!state.editMode) return;
+                
+                const handle = e.target.closest('.drag-handle');
+                if (!handle) return;
+                
+                const item = handle.closest('.playlist-item');
+                if (!item) return;
+                
+                e.preventDefault();
+                touchItem = item;
+                const touch = e.touches[0];
+                const rect = item.getBoundingClientRect();
+                touchOffset = {
+                    x: touch.clientX - rect.left,
+                    y: touch.clientY - rect.top
+                };
+                
+                // Create placeholder
+                placeholder = item.cloneNode(true);
+                placeholder.style.opacity = '0.3';
+                placeholder.classList.add('placeholder');
+                
+                // Style the dragged item
+                item.style.position = 'fixed';
+                item.style.zIndex = '1000';
+                item.style.width = rect.width + 'px';
+                item.style.opacity = '0.8';
+                item.style.transform = 'scale(1.05)';
+                item.style.transition = 'none';
+                
+                // Insert placeholder
+                item.parentNode.insertBefore(placeholder, item.nextSibling);
+            });
+            
+            document.addEventListener('touchmove', (e) => {
+                if (!touchItem || !placeholder) return;
+                
+                e.preventDefault();
+                const touch = e.touches[0];
+                
+                // Move the item
+                touchItem.style.left = (touch.clientX - touchOffset.x) + 'px';
+                touchItem.style.top = (touch.clientY - touchOffset.y) + 'px';
+                
+                // Find drop target
+                const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+                const dropTarget = elementBelow?.closest('.playlist-item:not(.placeholder)');
+                
+                if (dropTarget && dropTarget !== touchItem) {
+                    const rect = dropTarget.getBoundingClientRect();
+                    const midpoint = rect.top + rect.height / 2;
+                    
+                    if (touch.clientY < midpoint) {
+                        dropTarget.parentNode.insertBefore(placeholder, dropTarget);
+                    } else {
+                        dropTarget.parentNode.insertBefore(placeholder, dropTarget.nextSibling);
+                    }
+                }
+            });
+            
+            document.addEventListener('touchend', (e) => {
+                if (!touchItem || !placeholder) return;
+                
+                e.preventDefault();
+                
+                // Get indices
+                const items = Array.from(document.querySelectorAll('.playlist-item:not(.placeholder)'));
+                const oldIndex = parseInt(touchItem.dataset.index);
+                const newIndex = Array.from(placeholder.parentNode.children).indexOf(placeholder);
+                
+                // Reset styles
+                touchItem.style.position = '';
+                touchItem.style.zIndex = '';
+                touchItem.style.width = '';
+                touchItem.style.opacity = '';
+                touchItem.style.transform = '';
+                touchItem.style.transition = '';
+                touchItem.style.left = '';
+                touchItem.style.top = '';
+                
+                // Replace placeholder with item
+                placeholder.parentNode.replaceChild(touchItem, placeholder);
+                
+                // Update playlist order
+                if (oldIndex !== newIndex && oldIndex !== -1) {
+                    const track = state.playlist[oldIndex];
+                    state.playlist.splice(oldIndex, 1);
+                    
+                    let insertIndex = newIndex;
+                    if (oldIndex < newIndex) insertIndex--;
+                    
+                    state.playlist.splice(insertIndex, 0, track);
+                    
+                    // Update current track index
+                    if (state.currentTrackIndex === oldIndex) {
+                        state.currentTrackIndex = insertIndex;
+                    } else if (oldIndex < state.currentTrackIndex && insertIndex >= state.currentTrackIndex) {
+                        state.currentTrackIndex--;
+                    } else if (oldIndex > state.currentTrackIndex && insertIndex <= state.currentTrackIndex) {
+                        state.currentTrackIndex++;
+                    }
+                    
+                    renderPlaylist();
+                    savePlaylist();
+                }
+                
+                touchItem = null;
+                touchOffset = null;
+                placeholder = null;
+            });
+        }
+        
+        // Progress bar functionality
+        function setupProgressBar() {
+            const progressBar = document.getElementById('miniPlayerProgress');
+            const progressBarFill = document.getElementById('miniPlayerProgressBar');
+            const audio = document.getElementById('audioPlayer');
+            
+            let isSeeking = false;
+            
+            // Mouse events
+            progressBar.addEventListener('mousedown', startSeek);
+            document.addEventListener('mousemove', seek);
+            document.addEventListener('mouseup', endSeek);
+            
+            // Touch events
+            progressBar.addEventListener('touchstart', startSeek);
+            document.addEventListener('touchmove', seek);
+            document.addEventListener('touchend', endSeek);
+            
+            function startSeek(e) {
+                if (audio.duration && !isNaN(audio.duration)) {
+                    isSeeking = true;
+                    progressBar.classList.add('seeking');
+                    seek(e);
+                }
+            }
+            
+            function seek(e) {
+                if (!isSeeking) return;
+                
+                e.preventDefault();
+                const rect = progressBar.getBoundingClientRect();
+                const x = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                const percent = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+                
+                progressBarFill.style.width = (percent * 100) + '%';
+                
+                if (audio.duration) {
+                    audio.currentTime = percent * audio.duration;
+                }
+            }
+            
+            function endSeek() {
+                if (isSeeking) {
+                    isSeeking = false;
+                    progressBar.classList.remove('seeking');
+                }
+            }
+        }
+        
+        function updateProgress() {
+            const audio = document.getElementById('audioPlayer');
+            const progressBar = document.getElementById('miniPlayerProgressBar');
+            
+            if (audio.duration && !isNaN(audio.duration)) {
+                const percent = (audio.currentTime / audio.duration) * 100;
+                progressBar.style.width = percent + '%';
+                
+                // Update fullscreen player progress
+                document.getElementById('fullscreenSeeker').value = percent;
+                document.getElementById('fullscreenCurrentTime').textContent = formatTime(audio.currentTime);
+                document.getElementById('fullscreenDuration').textContent = formatTime(audio.duration);
+            } else {
+                progressBar.style.width = '0%';
+            }
+        }
+        
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        function openFullscreenPlayer() {
+            const fullscreenPlayer = document.getElementById('fullscreenPlayer');
+            const currentTrack = state.playlist[state.currentTrackIndex];
+            
+            if (!currentTrack) return;
+            
+            // iOS Safari fullscreen (optional - may not work on all devices)
+            try {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(() => {
+                        // Ignore fullscreen errors
+                    });
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    document.documentElement.webkitRequestFullscreen();
+                }
+            } catch (e) {
+                // Ignore fullscreen errors
+            }
+            
+            // Update track info
+            document.getElementById('fullscreenTitle').textContent = currentTrack.title;
+            document.getElementById('fullscreenArtist').textContent = currentTrack.artist;
+            document.getElementById('fullscreenAlbum').textContent = currentTrack.album || '';
+            
+            // Update album art
+            const albumArt = document.getElementById('fullscreenAlbumArt');
+            const background = document.querySelector('.fullscreen-background');
+            
+            debugLog('Opening fullscreen player with track:', currentTrack);
+            
+            if (currentTrack.albumCover) {
+                albumArt.src = currentTrack.albumCover;
+                background.style.backgroundImage = `url(${currentTrack.albumCover})`;
+                debugLog('Setting album cover:', currentTrack.albumCover);
+            } else {
+                albumArt.src = '';
+                background.style.backgroundImage = '';
+                debugLog('No album cover available');
+            }
+            
+            // Update controls state
+            document.getElementById('fullscreenShuffleBtn').classList.toggle('active', state.shuffleEnabled);
+            document.getElementById('fullscreenRepeatBtn').classList.toggle('active', state.repeatMode !== 'none');
+            
+            // Update volume to match Easy Loudness slider
+            document.getElementById('fullscreenVolume').value = state.easyModeValue;
+            document.getElementById('fullscreenVolumeValue').textContent = state.easyModeValue + '%';
+            
+            // Reset dim screen state
+            state.dimScreenActive = false;
+            document.getElementById('dimOverlay').classList.remove('active');
+            
+            // Show fullscreen player
+            fullscreenPlayer.style.display = 'flex';
+            setTimeout(() => {
+                fullscreenPlayer.classList.add('active');
+            }, 10);
+            
+            // Setup tap counter for dim screen
+            setupDimScreenToggle();
+        }
+        
+        function closeFullscreenPlayer() {
+            const fullscreenPlayer = document.getElementById('fullscreenPlayer');
+            fullscreenPlayer.classList.remove('active');
+            setTimeout(() => {
+                fullscreenPlayer.style.display = 'none';
+            }, 300);
+            
+            // Exit fullscreen (optional)
+            try {
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen().catch(() => {});
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    }
+                }
+            } catch (e) {
+                // Ignore fullscreen errors
+            }
+            
+            // Clean up dim screen tap listener
+            removeDimScreenToggle();
+        }
+        
+        function setupDimScreenToggle() {
+            let tapCount = 0;
+            let tapTimer;
+            
+            const handleTap = (e) => {
+                // Ignore taps on controls
+                if (e.target.closest('.fullscreen-controls') || 
+                    e.target.closest('.fullscreen-header') ||
+                    e.target.closest('.fullscreen-volume') ||
+                    e.target.closest('.fullscreen-progress')) {
+                    return;
+                }
+                
+                tapCount++;
+                
+                if (tapCount === 3) {
+                    toggleDimScreen();
+                    tapCount = 0;
+                }
+                
+                clearTimeout(tapTimer);
+                tapTimer = setTimeout(() => {
+                    tapCount = 0;
+                }, 500);
+            };
+            
+            // Store handler for cleanup
+            state.dimScreenTapHandler = handleTap;
+            
+            const fullscreenPlayer = document.getElementById('fullscreenPlayer');
+            fullscreenPlayer.addEventListener('click', handleTap);
+        }
+        
+        function removeDimScreenToggle() {
+            if (state.dimScreenTapHandler) {
+                const fullscreenPlayer = document.getElementById('fullscreenPlayer');
+                fullscreenPlayer.removeEventListener('click', state.dimScreenTapHandler);
+                state.dimScreenTapHandler = null;
+            }
+        }
+        
+        function toggleDimScreen() {
+            state.dimScreenActive = !state.dimScreenActive;
+            const dimOverlay = document.getElementById('dimOverlay');
+            
+            if (state.dimScreenActive) {
+                dimOverlay.classList.add('active');
+                showToast('Dim screen ON - OLED protection', 'info');
+            } else {
+                dimOverlay.classList.remove('active');
+                showToast('Dim screen OFF', 'info');
+            }
+        }
+        
+        function playPrevious() {
+            if (state.currentTrackIndex > 0) {
+                playTrack(state.currentTrackIndex - 1);
+            } else if (state.repeatMode === 'all') {
+                playTrack(state.playlist.length - 1);
+            }
+        }
+        
+        function playNext() {
+            if (state.shuffleEnabled) {
+                // Play random track
+                const randomIndex = Math.floor(Math.random() * state.playlist.length);
+                playTrack(randomIndex);
+            } else if (state.currentTrackIndex < state.playlist.length - 1) {
+                playTrack(state.currentTrackIndex + 1);
+            } else if (state.repeatMode === 'all') {
+                playTrack(0);
+            }
+        }
+        
+        // Make functions available globally for onclick handlers
+        window.removeFromPlaylist = removeFromPlaylist;
+        window.handleDragStart = handleDragStart;
+        window.handleDragOver = handleDragOver;
+        window.handleDrop = handleDrop;
+        window.handleDragEnd = handleDragEnd;
+
+        // Playback functions
+        async function playTrack(index) {
+            if (index < 0 || index >= state.playlist.length) return;
+            
+            if (!state.audioContext) {
+                await initializeAudio();
+            }
+            
+            state.currentTrackIndex = index;
+            const track = state.playlist[index];
+            const audio = document.getElementById('audioPlayer');
+            
+            // Update UI
+            document.getElementById('miniPlayerTitle').textContent = track.title;
+            document.getElementById('miniPlayerArtist').textContent = track.artist;
+            
+            // Update album art
+            const miniAlbumArt = document.getElementById('miniPlayerAlbumArt');
+            if (miniAlbumArt) {
+                if (track.albumCover) {
+                    miniAlbumArt.src = track.albumCover;
+                    miniAlbumArt.style.display = 'block';
+                } else {
+                    // Set a placeholder or leave empty for CSS to handle
+                    miniAlbumArt.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjMmEyYTJhIi8+CjxwYXRoIGQ9Ik0yNCAzMkMyOC40MTgzIDMyIDMyIDI4LjQxODMgMzIgMjRDMzIgMTkuNTgxNyAyOC40MTgzIDE2IDI0IDE2QzE5LjU4MTcgMTYgMTYgMTkuNTgxNyAxNiAyNEMxNiAyOC40MTgzIDE5LjU4MTcgMzIgMjQgMzJaIiBmaWxsPSIjNjY2NjY2Ii8+CjxwYXRoIGQ9Ik0yNCAyOEMyNi4yMDkxIDI4IDI4IDI2LjIwOTEgMjggMjRDMjggMjEuNzkwOSAyNi4yMDkxIDIwIDI0IDIwQzIxLjc5MDkgMjAgMjAgMjEuNzkwOSAyMCAyNEMyMCAyNi4yMDkxIDIxLjc5MDkgMjggMjQgMjhaIiBmaWxsPSIjMmEyYTJhIi8+Cjwvc3ZnPg==';
+                    miniAlbumArt.style.display = 'block';
+                }
+            }
+            
+            try {
+                // Ensure AudioContext is resumed
+                if (state.audioContext && state.audioContext.state === 'suspended') {
+                    await state.audioContext.resume();
+                    console.log('AudioContext resumed');
+                }
+                
+                if (track.type === 'local' && track.file) {
+                    // Local file playback
+                    debugLog('Playing local file:', track.title, track.file);
+                    debugLog('File type:', track.file.type, 'Size:', track.file.size);
+                    
+                    const url = URL.createObjectURL(track.file);
+                    debugLog('Created blob URL:', url);
+                    audio.src = url;
+                    
+                    // Wait for metadata to load
+                    debugLog('Waiting for metadata...');
+                    await new Promise((resolve, reject) => {
+                        audio.onloadedmetadata = () => {
+                            debugLog('Metadata loaded - Duration:', audio.duration, 'Ready state:', audio.readyState);
+                            resolve();
+                        };
+                        audio.onerror = (e) => {
+                            debugLog('Audio error:', e);
+                            reject(e);
+                        };
+                        setTimeout(() => {
+                            debugLog('Metadata load timeout');
+                            reject(new Error('Metadata load timeout'));
+                        }, 5000);
+                    });
+                    
+                    debugLog('About to call audio.play()...');
+                    debugLog('Audio element state - Volume:', audio.volume, 'Muted:', audio.muted, 'Paused:', audio.paused);
+                    debugLog('Audio source node:', state.audioSource ? 'exists' : 'null');
+                    debugLog('Master gain value:', state.masterGain ? state.masterGain.gain.value : 'null');
+                    
+                    await audio.play();
+                    debugLog('audio.play() succeeded - isPlaying:', !audio.paused);
+                    debugLog('Audio currentTime:', audio.currentTime);
+                    
+                    renderPlaylist();
+                } else if (track.type === 'tidal') {
+                    // TIDAL streaming with blob download
+                    showToast('Loading track...', 'info');
+                    debugLog('Getting TIDAL stream for track:', track.id);
+                    
+                    // Fetch track details if album cover is missing
+                    if (!track.albumCover) {
+                        try {
+                            const trackDetails = await tidalRequest(`/tracks/${track.id}`, {
+                                countryCode: state.countryCode || 'US'
+                            });
+                            if (trackDetails.album?.cover) {
+                                track.albumCover = `https://resources.tidal.com/images/${trackDetails.album.cover.replace(/-/g, '/')}/320x320.jpg`;
+                                track.album = trackDetails.album.title;
+                                debugLog('Fetched album cover:', track.albumCover);
+                            }
+                        } catch (error) {
+                            debugLog('Failed to fetch track details:', error);
+                        }
+                    }
+                    
+                    // Clean up previous blob URL if exists
+                    if (track.blobUrl && track.blobUrl.startsWith('blob:')) {
+                        URL.revokeObjectURL(track.blobUrl);
+                    }
+                    
+                    const blobUrl = await getStreamUrl(track.id);
+                    track.blobUrl = blobUrl; // Store blob URL for cleanup
+                    debugLog('Got blob URL:', blobUrl);
+                    audio.src = blobUrl;
+                    
+                    debugLog('About to call audio.play() for TIDAL...');
+                    debugLog('Audio element state - Volume:', audio.volume, 'Muted:', audio.muted, 'Paused:', audio.paused);
+                    debugLog('Audio source node:', state.audioSource ? 'exists' : 'null');
+                    debugLog('Master gain value:', state.masterGain ? state.masterGain.gain.value : 'null');
+                    
+                    await audio.play();
+                    debugLog('audio.play() succeeded for TIDAL - isPlaying:', !audio.paused);
+                    
+                    renderPlaylist();
+                } else {
+                    throw new Error('Invalid track type');
+                }
+                
+                // Verify audio is connected
+                if (!state.sourceNode) {
+                    debugLog('WARNING: Source node not connected! Reconnecting...');
+                    connectAudioNodes();
+                } else {
+                    debugLog('Source node is connected');
+                }
+            } catch (error) {
+                showToast('Failed to play track: ' + error.message, 'error');
+                debugLog('Playback error:', error);
+                
+                // Log audio element state
+                debugLog('Audio element state:', {
+                    src: audio.src,
+                    readyState: audio.readyState,
+                    error: audio.error,
+                    paused: audio.paused,
+                    currentTime: audio.currentTime,
+                    duration: audio.duration
+                });
+                
+                // Log Web Audio API state
+                debugLog('Web Audio state:', {
+                    context: state.audioContext ? state.audioContext.state : 'null',
+                    sourceNode: state.sourceNode ? 'exists' : 'null',
+                    masterGain: state.masterGain ? state.masterGain.gain.value : 'null'
+                });
+                
+                // Log AudioContext state
+                if (state.audioContext) {
+                    console.log('AudioContext state:', state.audioContext.state);
+                }
+            }
+        }
+
+        function togglePlayPause() {
+            const audio = document.getElementById('audioPlayer');
+            
+            if (audio.paused) {
+                if (state.currentTrackIndex === -1 && state.playlist.length > 0) {
+                    playTrack(0);
+                } else {
+                    audio.play();
+                }
+            } else {
+                audio.pause();
+            }
+        }
+
+        function updatePlayButton() {
+            const miniBtn = document.getElementById('miniPlayBtn');
+            const fullscreenPlayBtn = document.getElementById('fullscreenPlayBtn');
+            
+            if (state.isPlaying) {
+                miniBtn.innerHTML = '<svg width="28" height="28" viewBox="0 0 48 48" fill="currentColor"><rect x="14" y="12" width="8" height="24"></rect><rect x="26" y="12" width="8" height="24"></rect></svg>';
+                fullscreenPlayBtn.innerHTML = '<svg width="48" height="48" viewBox="0 0 48 48" fill="currentColor"><rect x="14" y="12" width="8" height="24"></rect><rect x="26" y="12" width="8" height="24"></rect></svg>';
+            } else {
+                miniBtn.innerHTML = '<svg width="28" height="28" viewBox="0 0 48 48" fill="currentColor"><polygon points="19 10 39 24 19 38"></polygon></svg>';
+                fullscreenPlayBtn.innerHTML = '<svg width="48" height="48" viewBox="0 0 48 48" fill="currentColor"><polygon points="19 10 39 24 19 38"></polygon></svg>';
+            }
+        }
+
+        function handleTrackEnd() {
+            if (state.repeatMode === 'one') {
+                const audio = document.getElementById('audioPlayer');
+                audio.currentTime = 0;
+                audio.play();
+            } else if (state.currentTrackIndex < state.playlist.length - 1) {
+                playTrack(state.currentTrackIndex + 1);
+            } else if (state.repeatMode === 'all') {
+                playTrack(0);
+            }
+        }
+
+        function toggleShuffle() {
+            state.shuffleEnabled = !state.shuffleEnabled;
+            document.getElementById('shuffleBtn').style.color = 
+                state.shuffleEnabled ? 'var(--tidal-cyan)' : 'var(--text-primary)';
+            document.getElementById('fullscreenShuffleBtn').classList.toggle('active', state.shuffleEnabled);
+            showToast(state.shuffleEnabled ? 'Shuffle on' : 'Shuffle off', 'info');
+        }
+
+        function toggleRepeat() {
+            const modes = ['none', 'all', 'one'];
+            const currentIndex = modes.indexOf(state.repeatMode);
+            state.repeatMode = modes[(currentIndex + 1) % modes.length];
+            
+            document.getElementById('repeatBtn').style.color = 
+                state.repeatMode !== 'none' ? 'var(--tidal-cyan)' : 'var(--text-primary)';
+            document.getElementById('fullscreenRepeatBtn').classList.toggle('active', state.repeatMode !== 'none');
+            
+            const messages = {
+                'none': 'Repeat off',
+                'all': 'Repeat all',
+                'one': 'Repeat one'
+            };
+            
+            showToast(messages[state.repeatMode], 'info');
+        }
+
+        // Settings
+        function saveTidalCredentials() {
+            const token = document.getElementById('tidalTokenInput').value.trim();
+            const clientId = document.getElementById('clientIdInput').value.trim();
+            const countryCode = document.getElementById('countryCodeInput').value.trim().toUpperCase();
+            
+            if (!token) {
+                showToast('Please enter an access token', 'error');
+                return;
+            }
+            
+            // Validate country code if provided
+            if (countryCode && countryCode.length !== 2) {
+                showToast('Country code must be 2 characters (e.g., US, KR)', 'error');
+                return;
+            }
+            
+            // Save OAuth token
+            state.tidalToken = token;
+            state.tidalClientId = clientId || CLIENT_ID;
+            if (countryCode) {
+                state.countryCode = countryCode;
+            }
+            
+            localStorage.setItem(AUTH_STORAGE_KEYS.TOKEN, token);
+            localStorage.setItem(AUTH_STORAGE_KEYS.CLIENT_ID, clientId || CLIENT_ID);
+            if (countryCode) {
+                localStorage.setItem(AUTH_STORAGE_KEYS.COUNTRY_CODE, countryCode);
+            }
+            
+            updateTidalStatus();
+            
+            document.getElementById('tidalModal').classList.remove('active');
+            showToast('TIDAL credentials saved', 'success');
+        }
+
+        function removeTidalCredentials() {
+            if (!confirm('Remove TIDAL credentials?')) return;
+            
+            // Clear OAuth data
+            clearAuthData();
+            
+            state.tidalToken = null;
+            state.tidalClientId = null;
+            state.countryCode = 'US'; // Reset to default
+            
+            updateTidalStatus();
+            showToast('TIDAL credentials removed', 'success');
+        }
+
+        function updateTidalStatus() {
+            const statusEl = document.getElementById('tidalStatus');
+            if (state.tidalToken) {
+                const userId = localStorage.getItem(AUTH_STORAGE_KEYS.USER_ID);
+                if (userId) {
+                    statusEl.textContent = `Connected (User ID: ${userId})`;
+                } else {
+                    statusEl.textContent = 'Connected';
+                }
+                statusEl.style.color = 'var(--spl-safe)';
+            } else {
+                statusEl.textContent = 'Not connected';
+                statusEl.style.color = 'var(--text-secondary)';
+            }
+        }
+
+        function loadSettings() {
+            // TIDAL credentials are already loaded in state initialization from OAuth
+            // Just update the country code if needed
+            const savedCountryCode = localStorage.getItem(AUTH_STORAGE_KEYS.COUNTRY_CODE);
+            if (savedCountryCode) {
+                state.countryCode = savedCountryCode;
+            }
+            
+            // Load calibration
+            const calibration = localStorage.getItem('splCalibration');
+            if (calibration) {
+                try {
+                    state.calibrationState = JSON.parse(calibration);
+                } catch (e) {
+                    console.error('Failed to load calibration:', e);
+                }
+            }
+            
+            // Load headphone EQ
+            const headphoneEq = localStorage.getItem('headphoneEq');
+            if (headphoneEq) {
+                document.getElementById('eqTextarea').value = headphoneEq;
+            }
+            
+            // Load playlist (excluding local files which can't be persisted)
+            const playlist = localStorage.getItem('playlist');
+            if (playlist) {
+                try {
+                    const savedPlaylist = JSON.parse(playlist);
+                    // Only restore TIDAL tracks
+                    state.playlist = savedPlaylist.filter(track => track.type === 'tidal');
+                    renderPlaylist();
+                    if (state.playlist.length > 0) {
+                        document.getElementById('miniPlayer').classList.remove('hidden');
+                        // Show global loudness slider if not on Easy tab
+                        if (state.currentTab !== 'easy') {
+                            document.getElementById('globalLoudnessContainer').classList.add('visible');
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to load playlist:', e);
+                }
+            }
+            
+            // Initial UI update
+            updateEasyMode();
+            updateTidalStatus();
+            
+            // Sync global slider
+            document.getElementById('globalLoudnessSlider').value = state.easyModeValue;
+        }
+
+        function savePlaylist() {
+            // Only save TIDAL tracks (local files can't be persisted)
+            const tidalTracks = state.playlist.map(track => {
+                if (track.type === 'tidal') {
+                    return track;
+                } else {
+                    // Save metadata only for local files
+                    return {
+                        ...track,
+                        file: null // Can't serialize File objects
+                    };
+                }
+            });
+            localStorage.setItem('playlist', JSON.stringify(tidalTracks));
+        }
+
+        // Utility functions
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

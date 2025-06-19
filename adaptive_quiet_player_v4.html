@@ -691,12 +691,31 @@
             border: 1px solid var(--accent);
             border-radius: 24px;
             background: rgba(52, 199, 89, 0.05);
-            min-width: 380px;
+            min-width: 420px;
+        }
+        
+        .smart-volume-control-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1;
+        }
+        
+        .smart-volume-label {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            font-size: 11px;
+        }
+        
+        .smart-volume-desc {
+            color: var(--text-secondary);
+            font-size: 10px;
         }
 
         /* Smart Volume Slider */
         .smart-volume-slider {
-            width: 120px;
+            width: 100%;
             height: 4px;
             -webkit-appearance: none;
             background: var(--accent);
@@ -723,8 +742,6 @@
             font-size: 12px;
             color: var(--accent);
             font-weight: 600;
-            min-width: 45px;
-            text-align: right;
         }
 
         /* Toggle switch */
@@ -1111,9 +1128,14 @@
                             <div class="smart-status-line" id="quietModeStatus" style="display: none;">Quiet Mode <span id="adaptationLevel">100%</span></div>
                         </div>
                     </div>
-                    <input type="range" class="smart-volume-slider" id="snrSlider" 
-                           min="0" max="50" value="20" step="1">
-                    <span class="smart-volume-value" id="snrValue">+20 dB</span>
+                    <div class="smart-volume-control-wrapper">
+                        <input type="range" class="smart-volume-slider" id="snrSlider" 
+                               min="0" max="50" value="5" step="1">
+                        <div class="smart-volume-label">
+                            <span class="smart-volume-value" id="snrValue">+5 dB</span>
+                            <span class="smart-volume-desc">above ambient noise</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="volume-control">
                     <button class="icon-button" id="muteBtn">
@@ -1298,7 +1320,7 @@
                 // Default to 50 phon for quieter listening (85 dB SPL = 0 LUFS calibration)
                 this.targetPhon = 50;
                 this.referencePhon = 80;
-                this.desiredSNR = 20;
+                this.desiredSNR = 5;
                 this.manualThreshold = 45;
                 
                 // Track normalization
@@ -1453,13 +1475,45 @@
                 document.getElementById('prevBtn').addEventListener('click', () => this.playPrevious());
                 document.getElementById('nextBtn').addEventListener('click', () => this.playNext());
                 
-                // Volume control
+                // Volume control - Android style (only on release)
                 const volumeSlider = document.getElementById('volumeSlider');
+                let isDraggingVolume = false;
+                let pendingVolume = null;
+                
+                volumeSlider.addEventListener('mousedown', () => {
+                    isDraggingVolume = true;
+                });
+                
+                volumeSlider.addEventListener('touchstart', () => {
+                    isDraggingVolume = true;
+                });
+                
                 volumeSlider.addEventListener('input', (e) => {
-                    const volume = e.target.value / 100;
-                    if (this.audioElement) {
-                        // Don't directly set audio element volume
-                        // Use our volume system instead
+                    // Store the pending volume but don't apply it yet
+                    pendingVolume = e.target.value / 100;
+                    // Optional: Update visual feedback without changing actual volume
+                    // You could show a preview or ghost value here
+                });
+                
+                volumeSlider.addEventListener('mouseup', () => {
+                    isDraggingVolume = false;
+                    if (pendingVolume !== null && this.audioElement) {
+                        this.updateMasterVolume();
+                        pendingVolume = null;
+                    }
+                });
+                
+                volumeSlider.addEventListener('touchend', () => {
+                    isDraggingVolume = false;
+                    if (pendingVolume !== null && this.audioElement) {
+                        this.updateMasterVolume();
+                        pendingVolume = null;
+                    }
+                });
+                
+                // Handle when user drags outside the slider
+                volumeSlider.addEventListener('change', () => {
+                    if (!isDraggingVolume && this.audioElement) {
                         this.updateMasterVolume();
                     }
                 });
@@ -1490,30 +1544,59 @@
                 });
                 
                 
-                // SNR slider (Smart Volume)
-                document.getElementById('snrSlider').addEventListener('input', (e) => {
-                    this.desiredSNR = parseInt(e.target.value);
-                    document.getElementById('snrValue').textContent = '+' + this.desiredSNR + ' dB';
-                    
-                    // Update auto gain immediately if smart mode is on
-                    if (this.smartMode) {
-                        const targetMusicLevel = this.noiseLevel + this.desiredSNR;
-                        this.autoGain = Math.max(-30, Math.min(30, targetMusicLevel - this.targetPhon));
-                        console.log(`SNR changed: Noise ${this.noiseLevel}dB + SNR ${this.desiredSNR}dB = ${targetMusicLevel}dB target, autoGain: ${this.autoGain}dB`);
+                // SNR slider (Smart Volume) - Android style
+                const snrSlider = document.getElementById('snrSlider');
+                let isDraggingSNR = false;
+                let pendingSNR = null;
+                
+                snrSlider.addEventListener('mousedown', () => { isDraggingSNR = true; });
+                snrSlider.addEventListener('touchstart', () => { isDraggingSNR = true; });
+                
+                snrSlider.addEventListener('input', (e) => {
+                    pendingSNR = parseInt(e.target.value);
+                    // Update display immediately
+                    document.getElementById('snrValue').textContent = '+' + pendingSNR + ' dB';
+                });
+                
+                const applySNRChange = () => {
+                    if (pendingSNR !== null) {
+                        this.desiredSNR = pendingSNR;
                         
-                        // Update displays
-                        const effectiveLevel = this.targetPhon + this.autoGain;
-                        const headroomLUFS = -(effectiveLevel - 85);
-                        // Display as dBFS (negative values for headroom)
-                        this.updateStatusDisplays(
-                            null,
-                            (-headroomLUFS).toFixed(1) + ' dBFS',
-                            `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`
-                        );
+                        // Update auto gain immediately if smart mode is on
+                        if (this.smartMode) {
+                            const targetMusicLevel = this.noiseLevel + this.desiredSNR;
+                            this.autoGain = Math.max(-30, Math.min(30, targetMusicLevel - this.targetPhon));
+                            console.log(`SNR changed: Noise ${this.noiseLevel}dB + SNR ${this.desiredSNR}dB = ${targetMusicLevel}dB target, autoGain: ${this.autoGain}dB`);
+                            
+                            // Update displays
+                            const effectiveLevel = this.targetPhon + this.autoGain;
+                            const headroomLUFS = -(effectiveLevel - 85);
+                            // Display as dBFS (negative values for headroom)
+                            this.updateStatusDisplays(
+                                null,
+                                (-headroomLUFS).toFixed(1) + ' dBFS',
+                                `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`
+                            );
+                        }
+                        
+                        // Always update volume to reflect changes
+                        this.updateMasterVolume();
+                        pendingSNR = null;
                     }
-                    
-                    // Always update volume to reflect changes
-                    this.updateMasterVolume();
+                };
+                
+                snrSlider.addEventListener('mouseup', () => {
+                    isDraggingSNR = false;
+                    applySNRChange();
+                });
+                
+                snrSlider.addEventListener('touchend', () => {
+                    isDraggingSNR = false;
+                    applySNRChange();
+                });
+                
+                snrSlider.addEventListener('change', () => {
+                    if (!isDraggingSNR) applySNRChange();
                 });
                 
                 // Settings sliders
@@ -3077,10 +3160,15 @@
                         this.listeningSession.loudModeStartTime = null;
                         this.listeningSession.loudModeCounter = 0;
                         this.listeningSession.currentAdaptation = this.quietEnhancement / 80.0;
-                        // Hide quiet mode status when exiting loud mode
-                        const quietStatus = document.getElementById('quietModeStatus');
-                        if (quietStatus) quietStatus.style.display = 'none';
                         console.log('Exiting loud mode - quiet conditions detected');
+                        
+                        // Immediately enter quiet mode
+                        this.listeningSession.isQuietMode = true;
+                        this.listeningSession.quietModeStartTime = Date.now();
+                        this.listeningSession.lastModeChange = Date.now();
+                        this.listeningSession.previousMode = 'quiet';
+                        this.listeningSession.quietModeCounter = 3; // Already confirmed
+                        console.log(`Transitioning from loud to quiet mode (volume: ${currentVolume.toFixed(1)}dB)`);
                     } else {
                         this.listeningSession.loudModeCounter = 0;
                     }
