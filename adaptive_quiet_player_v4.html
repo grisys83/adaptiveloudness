@@ -1440,8 +1440,8 @@
                 this.updateStatusDisplays(
                     this.noiseLevel.toFixed(1) + ' dB',
                     (-headroomLUFS).toFixed(1) + ' dBFS',
-                    `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`,
-                    effectiveLevel.toFixed(0) + ' dB SPL'
+                    `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
+                    effectiveLevel.toFixed(1) + ' dB SPL'
                 );
                 
                 // Initialize Quiet Enhancement
@@ -1575,7 +1575,7 @@
                             this.updateStatusDisplays(
                                 null,
                                 (-headroomLUFS).toFixed(1) + ' dBFS',
-                                `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`
+                                `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`
                             );
                         }
                         
@@ -1605,7 +1605,7 @@
                     
                     // Calculate current effective target level
                     const targetMusicLevel = this.noiseLevel + this.desiredSNR;
-                    const dynamicTargetPhon = Math.round(targetMusicLevel / 10) * 10;
+                    const dynamicTargetPhon = Math.round(targetMusicLevel * 10) / 10;
                     
                     // Ensure reference is greater than dynamic target
                     if (newValue <= dynamicTargetPhon && this.smartMode) {
@@ -1624,8 +1624,8 @@
                     this.updateStatusDisplays(
                         null,
                         null,
-                        `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`,
-                        effectiveLevel.toFixed(0) + ' dB SPL'
+                        `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
+                        effectiveLevel.toFixed(1) + ' dB SPL'
                     );
                     
                     // Update filter if Smart Mode is active
@@ -2656,8 +2656,8 @@
                 this.updateStatusDisplays(
                     null,
                     displayHeadroom.toFixed(1) + ' dBFS',
-                    `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`,
-                    effectiveLevel.toFixed(0) + ' dB SPL'
+                    `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
+                    effectiveLevel.toFixed(1) + ' dB SPL'
                 );
             }
             
@@ -2698,8 +2698,8 @@
                             this.updateStatusDisplays(
                                 null,
                                 (-headroomLUFS).toFixed(1) + ' dBFS',
-                                `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`,
-                                effectiveLevel.toFixed(0) + ' dB SPL'
+                                `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
+                                effectiveLevel.toFixed(1) + ' dB SPL'
                             );
                         }, 1000); // Wait 1 second for noise level to stabilize
                     }
@@ -2755,7 +2755,7 @@
                     db.toFixed(1) + ' dB',
                     null,
                     null,
-                    effectiveLevel.toFixed(0) + ' dB SPL'
+                    effectiveLevel.toFixed(1) + ' dB SPL'
                 );
                 
                 // Continue monitoring
@@ -2924,7 +2924,7 @@
                 
                 // Calculate dynamic target phon based on actual listening level
                 const targetMusicLevel = this.noiseLevel + this.desiredSNR;
-                let dynamicTargetPhon = Math.round(targetMusicLevel / 10) * 10; // Round to nearest 10
+                let dynamicTargetPhon = Math.round(targetMusicLevel * 10) / 10; // Round to nearest 0.1
                 
                 // Ensure target phon is less than reference phon
                 if (dynamicTargetPhon >= this.referencePhon) {
@@ -2956,6 +2956,9 @@
                 if (!newCoeffs) return;
                 
                 console.log(`Filter update: Dynamic target phon ${dynamicTargetPhon} (from music level ${targetMusicLevel.toFixed(1)} dB)`);
+                
+                // Store current dynamic target phon for display
+                this.currentDynamicTargetPhon = dynamicTargetPhon;
                 
                 // Determine which filter to update
                 const targetFilter = this.currentFilter === 'A' ? 'B' : 'A';
