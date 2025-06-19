@@ -2950,8 +2950,8 @@
                 const timeSinceLastChange = now - this.listeningSession.lastModeChange;
                 const inCooldown = timeSinceLastChange < cooldownPeriod;
                 
-                // Check for loud mode (10dB above average OR volume > -15dB)
-                if (!this.listeningSession.isLoudMode && (volumeDiff <= -10 || currentVolume > -15)) {
+                // Check for loud mode (10dB above average OR volume > 70dB SPL)
+                if (!this.listeningSession.isLoudMode && (volumeDiff <= -10 || currentVolume > 70)) {
                     // Only enter if not in cooldown or if it's a different mode trigger
                     if (!inCooldown || this.listeningSession.previousMode !== 'loud') {
                         // Enter loud mode - start with zero enhancement
@@ -2968,6 +2968,9 @@
                             this.listeningSession.isQuietMode = false;
                             this.listeningSession.quietModeStartTime = null;
                             this.listeningSession.quietModeCounter = 0;
+                            this.listeningSession.isRecoveryMode = false;
+                            this.listeningSession.recoveryModeStartTime = null;
+                            this.listeningSession.recoveryStartAdaptation = undefined;
                         }
                     } else {
                         console.log(`Loud mode trigger ignored - in cooldown (${(cooldownPeriod - timeSinceLastChange) / 1000}s remaining)`);
@@ -2990,8 +2993,10 @@
                 // Check for quiet mode (only if not in loud mode)
                 if (!this.listeningSession.isLoudMode) {
                     // Always check quiet mode conditions
-                    // Condition: 5dB below 1-minute average OR volume < -40dB
-                    if (volumeDiff >= 5 || currentVolume < -40) {
+                    // Condition: 5dB below 1-minute average OR actual SPL < 50dB
+                    // Convert currentVolume (phon-based) to actual SPL equivalent
+                    const actualSPL = currentVolume; // This is already in dB SPL scale
+                    if (volumeDiff >= 5 || actualSPL < 50) {
                         this.listeningSession.quietModeCounter++;
                         
                         if (this.listeningSession.quietModeCounter >= 3) {  // 3 seconds
@@ -3015,8 +3020,8 @@
                 
                 // Exit condition for quiet mode
                 if (this.listeningSession.isQuietMode) {
-                    // Exit if volume is between -40 and -15 dB (moderate range)
-                    if (currentVolume >= -40 && currentVolume <= -15) {
+                    // Exit if volume is between 50 and 70 dB SPL (moderate range)
+                    if (currentVolume >= 50 && currentVolume <= 70) {
                         this.listeningSession.exitModeCounter++;
                         
                         if (this.listeningSession.exitModeCounter >= 3) {  // 3 seconds
@@ -3029,7 +3034,7 @@
                             this.listeningSession.recoveryModeStartTime = now;
                             console.log(`Exiting quiet mode, starting recovery (volume: ${currentVolume.toFixed(1)}dB)`);
                         }
-                    } else if (volumeDiff <= -10 || currentVolume > -15) {
+                    } else if (volumeDiff <= -10 || currentVolume > 70) {
                         // Exit immediately if loud mode conditions are met
                         this.listeningSession.isQuietMode = false;
                         this.listeningSession.quietModeStartTime = null;
@@ -3043,8 +3048,8 @@
                 
                 // Exit condition for loud mode
                 if (this.listeningSession.isLoudMode) {
-                    // Exit if volume is between -40 and -15 dB for 3 seconds (moderate range)
-                    if (currentVolume >= -40 && currentVolume <= -15) {
+                    // Exit if volume is between 50 and 70 dB SPL for 3 seconds (moderate range)
+                    if (currentVolume >= 50 && currentVolume <= 70) {
                         if (!this.listeningSession.loudModeCounter) {
                             this.listeningSession.loudModeCounter = 0;
                         }
@@ -3054,14 +3059,20 @@
                             this.listeningSession.isLoudMode = false;
                             this.listeningSession.loudModeStartTime = null;
                             this.listeningSession.currentAdaptation = this.quietEnhancement / 80.0; // Return to user's default
+                            // Hide quiet mode status when exiting loud mode
+                            const quietStatus = document.getElementById('quietModeStatus');
+                            if (quietStatus) quietStatus.style.display = 'none';
                             console.log(`Exiting loud mode - returning to ${this.quietEnhancement}% enhancement (volume: ${currentVolume.toFixed(1)}dB)`);
                         }
-                    } else if (volumeDiff >= 5 || currentVolume < -40) {
+                    } else if (volumeDiff >= 5 || currentVolume < 50) {
                         // Exit immediately if quiet mode conditions are met
                         this.listeningSession.isLoudMode = false;
                         this.listeningSession.loudModeStartTime = null;
                         this.listeningSession.loudModeCounter = 0;
                         this.listeningSession.currentAdaptation = this.quietEnhancement / 80.0;
+                        // Hide quiet mode status when exiting loud mode
+                        const quietStatus = document.getElementById('quietModeStatus');
+                        if (quietStatus) quietStatus.style.display = 'none';
                         console.log('Exiting loud mode - quiet conditions detected');
                     } else {
                         this.listeningSession.loudModeCounter = 0;
@@ -3160,8 +3171,11 @@
             updateLoudAdaptation() {
                 const loudModeStatus = document.getElementById('loudModeStatus');
                 const adaptationLevel = document.getElementById('adaptationLevel');
+                const quietModeStatus = document.getElementById('quietModeStatus');
                 
                 if (this.listeningSession.isLoudMode) {
+                    // Hide quiet mode status when in loud mode
+                    if (quietModeStatus) quietModeStatus.style.display = 'none';
                     const now = Date.now();
                     const elapsedSeconds = (now - this.listeningSession.loudModeStartTime) / 1000;
                     
