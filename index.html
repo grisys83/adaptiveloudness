@@ -3021,7 +3021,7 @@
                 
                 if (!newCoeffs) return;
                 
-                console.log(`Filter update: Dynamic target phon ${dynamicTargetPhon} (from music level ${targetMusicLevel.toFixed(1)} dB)`);
+                console.log(`Filter update: Dynamic target phon ${dynamicTargetPhon} (from effective level ${params.effectiveLevel.toFixed(1)} dB SPL)`);
                 
                 // Store current dynamic target phon for display
                 this.currentDynamicTargetPhon = dynamicTargetPhon;
