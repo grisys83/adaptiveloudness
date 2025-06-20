@@ -2266,8 +2266,9 @@
                     // Volume A/B nodes
                     this.volumeGainA = this.audioContext.createGain();
                     this.volumeGainB = this.audioContext.createGain();
+                    // Initialize both chains with same value
                     this.volumeGainA.gain.value = 1.0;
-                    this.volumeGainB.gain.value = 0.0;
+                    this.volumeGainB.gain.value = 1.0;
                     
                     // Create FIR filters
                     this.firFilterA = this.audioContext.createConvolver();
