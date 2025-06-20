@@ -5,9 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Smart Music Player</title>
     <!-- Music Metadata Browser for ID3 tags and album art -->
+    <!-- Music Metadata Browser - best compatibility for FLAC -->
     <script type="module">
         import * as musicMetadataBrowser from 'https://cdn.jsdelivr.net/npm/music-metadata-browser@2.5.10/+esm';
         window.parseAudioMetadata = musicMetadataBrowser.parseBlob;
+        console.log('Music metadata library loaded successfully');
+    </script>
+    <script>
+        // Check if library loaded after a delay
+        setTimeout(() => {
+            if (!window.parseAudioMetadata) {
+                console.warn('Music metadata library not loaded - album art extraction will not work');
+            }
+        }, 1000);
     </script>
     <style>
         :root {
@@ -1433,15 +1443,15 @@
                 document.getElementById('manualThreshold').value = this.manualThreshold;
                 document.getElementById('thresholdValue').textContent = this.manualThreshold + ' dB';
                 
-                // Initialize displays
-                const effectiveLevel = this.targetPhon + this.autoGain;
-                const headroomLUFS = -(effectiveLevel - 85);
+                // Initialize displays using centralized calculation
+                const params = this.calculateVolumeParameters();
+                const headroomLUFS = -(params.effectiveLevel - 85);
                 // Display as dBFS (negative values for headroom)
                 this.updateStatusDisplays(
                     this.noiseLevel.toFixed(1) + ' dB',
                     (-headroomLUFS).toFixed(1) + ' dBFS',
-                    `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
-                    effectiveLevel.toFixed(1) + ' dB SPL'
+                    `${(this.currentDynamicTargetPhon || params.effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
+                    params.effectiveLevel.toFixed(1) + ' dB SPL'
                 );
                 
                 // Initialize Quiet Enhancement
@@ -1568,14 +1578,14 @@
                             this.autoGain = Math.max(-30, Math.min(30, targetMusicLevel - this.targetPhon));
                             console.log(`SNR changed: Noise ${this.noiseLevel}dB + SNR ${this.desiredSNR}dB = ${targetMusicLevel}dB target, autoGain: ${this.autoGain}dB`);
                             
-                            // Update displays
-                            const effectiveLevel = this.targetPhon + this.autoGain;
-                            const headroomLUFS = -(effectiveLevel - 85);
+                            // Update displays using centralized calculation
+                            const params = this.calculateVolumeParameters();
+                            const headroomLUFS = -(params.effectiveLevel - 85);
                             // Display as dBFS (negative values for headroom)
                             this.updateStatusDisplays(
                                 null,
                                 (-headroomLUFS).toFixed(1) + ' dBFS',
-                                `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`
+                                `${(this.currentDynamicTargetPhon || params.effectiveLevel).toFixed(1)}→${this.referencePhon} phon`
                             );
                         }
                         
@@ -1619,13 +1629,13 @@
                     
                     document.getElementById('referencePhonValue').textContent = this.referencePhon + ' phon';
                     
-                    // Update EQ curve display
-                    const effectiveLevel = this.targetPhon + this.autoGain;
+                    // Update EQ curve display using centralized calculation
+                    const params = this.calculateVolumeParameters();
                     this.updateStatusDisplays(
                         null,
                         null,
-                        `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
-                        effectiveLevel.toFixed(1) + ' dB SPL'
+                        `${(this.currentDynamicTargetPhon || params.effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
+                        params.effectiveLevel.toFixed(1) + ' dB SPL'
                     );
                     
                     // Update filter if Smart Mode is active
@@ -1832,10 +1842,7 @@
                                 const blob = new Blob([picture.data], { type: picture.format });
                                 albumArtUrl = URL.createObjectURL(blob);
                                 
-                                // Clean up old album art URL
-                                if (this.trackMetadata?.albumArtUrl) {
-                                    URL.revokeObjectURL(this.trackMetadata.albumArtUrl);
-                                }
+                                // Don't revoke URLs - they're used in the playlist
                             }
                         }
                     }
@@ -2595,6 +2602,30 @@
                 return isoData[isoData.length - 1];
             }
             
+            // Centralized volume calculation
+            calculateVolumeParameters(targetPhon = null) {
+                // Use provided targetPhon or default to instance value
+                const phon = targetPhon !== null ? targetPhon : this.targetPhon;
+                
+                // Calibration: 85 dB SPL = 0 LUFS (standard monitoring level)
+                const baseAttenuation = phon - 85;
+                
+                // Apply track normalization and auto gain
+                const totalAttenuation = baseAttenuation + this.autoGain + this.normalizationOffset;
+                
+                // Calculate effective level for displays
+                const effectiveLevel = phon + this.autoGain + this.normalizationOffset;
+                
+                return {
+                    baseAttenuation,
+                    totalAttenuation,
+                    effectiveLevel,
+                    targetPhon: phon,
+                    autoGain: this.autoGain,
+                    normalizationOffset: this.normalizationOffset
+                };
+            }
+            
             updateMasterVolume() {
                 if (!this.masterGain || !this.volumeGainA || !this.volumeGainB) {
                     return;
@@ -2603,48 +2634,34 @@
                 const volumeSlider = document.getElementById('volumeSlider');
                 const volume = parseInt(volumeSlider.value) / 100;
                 
-                // Calibration: 85 dB SPL = 0 LUFS (standard monitoring level)
-                // If targetPhon is 50dB, we need -35dB from reference (50 - 85 = -35)
-                // This ensures proper loudness perception according to ISO 226:2003
-                const baseAttenuation = this.targetPhon - 85;
-                
-                // Apply track normalization and auto gain
-                const totalAttenuation = baseAttenuation + this.autoGain + this.normalizationOffset;
+                // Get volume parameters from centralized calculation
+                const params = this.calculateVolumeParameters();
                 
                 // Convert to linear gain
-                const calibratedGain = Math.pow(10, totalAttenuation / 20);
+                const calibratedGain = Math.pow(10, params.totalAttenuation / 20);
                 
                 // Apply user volume control
                 const finalGain = volume * calibratedGain;
-                this.targetVolumeValue = finalGain;
                 
-                console.log(`Volume calc: base ${baseAttenuation}dB + auto ${this.autoGain}dB = ${totalAttenuation}dB, gain: ${finalGain.toFixed(3)}`);
-                
-                // Use A/B transition for smooth volume change
-                const targetNode = this.currentVolumeNode === 'A' ? 'B' : 'A';
-                const targetGainNode = targetNode === 'A' ? this.volumeGainA : this.volumeGainB;
-                const currentGainNode = this.currentVolumeNode === 'A' ? this.volumeGainA : this.volumeGainB;
+                console.log(`Volume update: ${params.totalAttenuation.toFixed(1)}dB, gain: ${finalGain.toFixed(3)}`);
                 
                 const now = this.audioContext.currentTime;
-                const fadeTime = 10.0; // 10 seconds for very smooth transition
                 
-                // Start target at 0 and fade in
-                targetGainNode.gain.setValueAtTime(0, now);
-                targetGainNode.gain.linearRampToValueAtTime(finalGain, now + fadeTime);
+                // Update both chains smoothly to prevent pops
+                this.volumeGainA.gain.cancelScheduledValues(now);
+                this.volumeGainB.gain.cancelScheduledValues(now);
                 
-                // Fade out current
-                currentGainNode.gain.setValueAtTime(currentGainNode.gain.value, now);
-                currentGainNode.gain.linearRampToValueAtTime(0, now + fadeTime);
+                this.volumeGainA.gain.setValueAtTime(this.volumeGainA.gain.value, now);
+                this.volumeGainA.gain.linearRampToValueAtTime(finalGain, now + 0.2); // 200ms smooth transition
                 
-                setTimeout(() => {
-                    this.currentVolumeNode = targetNode;
-                }, fadeTime * 1000);
+                this.volumeGainB.gain.setValueAtTime(this.volumeGainB.gain.value, now);
+                this.volumeGainB.gain.linearRampToValueAtTime(finalGain, now + 0.2); // 200ms smooth transition
                 
                 // Update listening session tracking
                 this.updateListeningSession();
                 
                 // Update UI
-                const effectiveLevel = this.targetPhon + this.autoGain + this.normalizationOffset;
+                const effectiveLevel = params.effectiveLevel;
                 // 85 dB SPL = 0 LUFS
                 const headroomLUFS = -(effectiveLevel - 85);
                 
@@ -2661,9 +2678,42 @@
                 );
             }
             
+            async checkMicrophoneAvailability() {
+                try {
+                    // Check if mediaDevices API is available
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        return { available: false, reason: 'Media devices API not supported' };
+                    }
+                    
+                    // Check if we're on HTTPS (required for getUserMedia)
+                    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                        return { available: false, reason: 'HTTPS connection required' };
+                    }
+                    
+                    // Enumerate devices to check for microphones
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const hasMicrophone = devices.some(device => device.kind === 'audioinput');
+                    
+                    if (!hasMicrophone) {
+                        return { available: false, reason: 'No microphone detected' };
+                    }
+                    
+                    return { available: true };
+                } catch (error) {
+                    return { available: false, reason: error.message };
+                }
+            }
+            
             async startEnvironmentMonitoring() {
                 try {
                     console.log('Starting environment monitoring...');
+                    
+                    // First check if microphone is available
+                    const micCheck = await this.checkMicrophoneAvailability();
+                    if (!micCheck.available) {
+                        console.log('Microphone not available:', micCheck.reason);
+                        // Don't throw error - just use default noise level
+                    }
                     
                     const stream = await navigator.mediaDevices.getUserMedia({
                         audio: {
@@ -2691,25 +2741,57 @@
                             this.updateMasterVolume();
                             console.log(`Mic started: Noise ${this.noiseLevel}dB + SNR ${this.desiredSNR}dB = ${targetMusicLevel}dB target, autoGain: ${this.autoGain}dB`);
                             
-                            // Update displays
-                            const effectiveLevel = this.targetPhon + this.autoGain;
-                            const headroomLUFS = -(effectiveLevel - 85);
+                            // Update displays using centralized calculation
+                            const params = this.calculateVolumeParameters();
+                            const headroomLUFS = -(params.effectiveLevel - 85);
                             // Display as dBFS (negative values for headroom)
                             this.updateStatusDisplays(
                                 null,
                                 (-headroomLUFS).toFixed(1) + ' dBFS',
-                                `${(this.currentDynamicTargetPhon || effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
-                                effectiveLevel.toFixed(1) + ' dB SPL'
+                                `${(this.currentDynamicTargetPhon || params.effectiveLevel).toFixed(1)}→${this.referencePhon} phon`,
+                                params.effectiveLevel.toFixed(1) + ' dB SPL'
                             );
                         }, 1000); // Wait 1 second for noise level to stabilize
                     }
                     
                 } catch (error) {
                     console.error('Error accessing microphone:', error);
-                    alert('Could not access microphone: ' + error.message);
                     
-                    // Reset UI
-                    document.getElementById('smartVolumeToggle').checked = false;
+                    let errorMessage = 'Could not access microphone: ';
+                    
+                    // Determine specific error type
+                    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                        errorMessage = 'No microphone found. Please connect a microphone and try again.';
+                    } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                        errorMessage = 'Microphone access denied. Please allow microphone access in your browser settings.';
+                    } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                        errorMessage = 'Microphone is being used by another application.';
+                    } else if (error.name === 'OverconstrainedError') {
+                        errorMessage = 'Microphone settings are not supported.';
+                    } else if (error.name === 'SecurityError') {
+                        errorMessage = 'Microphone access is only available on secure (HTTPS) connections.';
+                    } else {
+                        errorMessage += error.message;
+                    }
+                    
+                    console.log(errorMessage);
+                    
+                    // Don't reset UI - keep Smart Volume enabled
+                    // Just use default noise level
+                    this.noiseLevel = 30; // Default quiet room level
+                    this.isListening = false;
+                    this.usingDefaultNoise = true;
+                    
+                    // Update status to show we're using default noise level
+                    const statusInfo = document.getElementById('smartStatusInfo');
+                    if (statusInfo) {
+                        document.getElementById('playerNoiseLevel').textContent = '30 dB (Default)';
+                    }
+                    
+                    // Allow Smart Volume to work with default noise level
+                    console.log('Using default noise level of 30 dB (no microphone available)');
+                    
+                    // Continue with default settings - don't return/throw
                 }
             }
             
@@ -2723,7 +2805,13 @@
             }
             
             monitorNoise() {
-                if (!this.isListening || !this.analyzer) return;
+                if (!this.isListening || !this.analyzer) {
+                    // If using default noise level, keep updating displays
+                    if (this.usingDefaultNoise && this.smartMode) {
+                        requestAnimationFrame(() => this.monitorNoise());
+                    }
+                    return;
+                }
                 
                 const bufferLength = this.analyzer.fftSize;
                 const dataArray = new Float32Array(bufferLength);
@@ -2749,13 +2837,13 @@
                 // Update noise level
                 this.noiseLevel = db;
                 
-                // Calculate current SPL level
-                const effectiveLevel = this.targetPhon + this.autoGain + this.normalizationOffset;
+                // Calculate current SPL level using centralized calculation
+                const params = this.calculateVolumeParameters();
                 this.updateStatusDisplays(
                     db.toFixed(1) + ' dB',
                     null,
                     null,
-                    effectiveLevel.toFixed(1) + ' dB SPL'
+                    params.effectiveLevel.toFixed(1) + ' dB SPL'
                 );
                 
                 // Continue monitoring
@@ -2765,31 +2853,31 @@
             startSmartSystem() {
                 console.log('Starting smart loudness system...');
                 
-                // Start periodic updates every 60 seconds (was 30)
+                // Start periodic updates every 10 seconds for testing
                 this.smartInterval = setInterval(() => {
-                    if (this.smartMode && this.isListening) {
+                    if (this.smartMode) {
                         this.updateSmartParameters();
                     }
-                }, 60000);
+                }, 10000); // 10 seconds for A/B cycling test
                 
                 // Force immediate volume update when starting
                 this.updateMode = 'volume';
                 
                 // Initial update - calculate immediate auto gain based on current noise
-                if (this.isListening) {
+                if (this.isListening || this.usingDefaultNoise) {
                     const targetMusicLevel = this.noiseLevel + this.desiredSNR;
                     this.autoGain = Math.max(-30, Math.min(30, targetMusicLevel - this.targetPhon));
                     this.updateMasterVolume();
                     console.log(`Initial smart: Noise ${this.noiseLevel}dB + SNR ${this.desiredSNR}dB = ${targetMusicLevel}dB target, autoGain: ${this.autoGain}dB`);
                     
-                    // Update displays
-                    const effectiveLevel = this.targetPhon + this.autoGain;
-                    const headroomLUFS = -(effectiveLevel - 85);
+                    // Update displays using centralized calculation
+                    const params = this.calculateVolumeParameters();
+                    const headroomLUFS = -(params.effectiveLevel - 85);
                     // Display as dBFS (negative values for headroom)
                     this.updateStatusDisplays(
                         null,
                         (-headroomLUFS).toFixed(1) + ' dBFS',
-                        `${effectiveLevel.toFixed(0)}→${this.referencePhon} phon`
+                        `${params.effectiveLevel.toFixed(0)}→${this.referencePhon} phon`
                     );
                 } else {
                     // Even without mic, apply any existing autoGain
@@ -2835,46 +2923,33 @@
             }
             
             updateSmartParameters() {
-                // Add current noise sample to buffer
-                this.thirtySecondBuffer.push(this.noiseLevel);
+                console.log(`\n=== Smart Update Cycle (${new Date().toLocaleTimeString()}) ===`);
+                console.log(`Mode: ${this.updateMode}`);
+                console.log(`Current Filter: ${this.currentFilter}, Current Volume: ${this.currentVolumeNode}`);
                 
-                // Maintain 60 samples (60 seconds at 1Hz)
-                if (this.thirtySecondBuffer.length > 60) {
-                    this.thirtySecondBuffer.shift();
-                }
+                // Get current measured noise level
+                const measuredNoise = this.noiseLevel;
                 
-                // Calculate percentile-filtered average (remove outliers)
-                let filteredAvg = 0;
-                if (this.thirtySecondBuffer.length > 5) {
-                    // Sort and remove top/bottom 20%
-                    const sorted = [...this.thirtySecondBuffer].sort((a, b) => a - b);
-                    const trimStart = Math.floor(sorted.length * 0.2);
-                    const trimEnd = Math.ceil(sorted.length * 0.8);
-                    const trimmed = sorted.slice(trimStart, trimEnd);
-                    filteredAvg = trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
-                } else {
-                    // Not enough samples, use simple average
-                    filteredAvg = this.thirtySecondBuffer.reduce((a, b) => a + b, 0) / this.thirtySecondBuffer.length;
-                }
-                
-                // Apply exponential moving average for extra smoothing
+                // Initialize smoothed noise if needed
                 if (!this.smoothedNoiseLevel) {
-                    this.smoothedNoiseLevel = filteredAvg;
-                } else {
-                    const alpha = 0.15; // 15% new, 85% old
-                    this.smoothedNoiseLevel = alpha * filteredAvg + (1 - alpha) * this.smoothedNoiseLevel;
+                    this.smoothedNoiseLevel = measuredNoise;
                 }
                 
-                // Apply rate limiting (max 1.5dB change per update)
+                // Apply rate limiting: max 1.5dB per 10 seconds
                 const maxChangeRate = 1.5;
-                let avgNoiseLevel = this.smoothedNoiseLevel;
-                if (this.lastAvgNoiseLevel) {
-                    const change = avgNoiseLevel - this.lastAvgNoiseLevel;
-                    if (Math.abs(change) > maxChangeRate) {
-                        avgNoiseLevel = this.lastAvgNoiseLevel + Math.sign(change) * maxChangeRate;
-                        this.smoothedNoiseLevel = avgNoiseLevel; // Update smoothed value
-                    }
+                const noiseDiff = measuredNoise - this.smoothedNoiseLevel;
+                
+                if (Math.abs(noiseDiff) > maxChangeRate) {
+                    // Limit the change to ±1.5dB
+                    this.smoothedNoiseLevel += Math.sign(noiseDiff) * maxChangeRate;
+                    console.log(`Rate limited: Measured ${measuredNoise.toFixed(1)}dB → Smoothed ${this.smoothedNoiseLevel.toFixed(1)}dB (${noiseDiff > 0 ? '+' : ''}${maxChangeRate}dB)`);
+                } else {
+                    // Accept the full change
+                    this.smoothedNoiseLevel = measuredNoise;
+                    console.log(`Accepted: Measured ${measuredNoise.toFixed(1)}dB → Smoothed ${this.smoothedNoiseLevel.toFixed(1)}dB`);
                 }
+                
+                const avgNoiseLevel = this.smoothedNoiseLevel;
                 
                 // Update listening session for adaptation
                 this.updateListeningSession();
@@ -2896,24 +2971,11 @@
                     // Allow both positive and negative gain (-30 to +30 dB range)
                     newAutoGain = Math.max(-30, Math.min(30, newAutoGain));
                     
-                    // Only update if change is significant (2dB threshold)
-                    // With smoothing, we can use a tighter stability check
-                    const noiseDiff = this.lastAvgNoiseLevel ? Math.abs(avgNoiseLevel - this.lastAvgNoiseLevel) : 0;
-                    
-                    if (Math.abs(newAutoGain - this.autoGain) > 2.0) {
-                        this.autoGain = newAutoGain;
-                        this.performVolumeTransition();
-                        console.log(`Volume update: Smoothed Noise ${avgNoiseLevel.toFixed(1)} dB, Auto Gain ${this.autoGain.toFixed(1)} dB`);
-                    } else {
-                        console.log(`Volume update skipped - change too small (${Math.abs(newAutoGain - this.autoGain).toFixed(1)} dB)`);
-                    }
-                    
-                    // Remember this average for next comparison
-                    this.lastAvgNoiseLevel = avgNoiseLevel;
-                    
-                    // Copy current buffer to previous for next cycle
-                    this.previousThirtySecondBuffer = [...this.thirtySecondBuffer];
-                    this.thirtySecondBuffer = [];
+                    // For testing: always update to see A/B transitions
+                    this.autoGain = newAutoGain;
+                    this.performVolumeTransition();
+                    console.log(`Volume update: Noise ${avgNoiseLevel.toFixed(1)} dB, Auto Gain ${this.autoGain.toFixed(1)} dB`);
+                    console.log(`Volume transition: ${this.currentVolumeNode} → ${this.currentVolumeNode === 'A' ? 'B' : 'A'}`);
                     
                     this.updateMode = 'filter';
                 }
@@ -2922,9 +2984,9 @@
             updateSmartFilter() {
                 if (!this.audioContext || !this.firFilterA || !this.firFilterB) return;
                 
-                // Calculate dynamic target phon based on actual listening level
-                const targetMusicLevel = this.noiseLevel + this.desiredSNR;
-                let dynamicTargetPhon = Math.round(targetMusicLevel * 10) / 10; // Round to nearest 0.1
+                // Calculate dynamic target phon based on actual playback level (including autoGain)
+                const params = this.calculateVolumeParameters();
+                let dynamicTargetPhon = Math.round(params.effectiveLevel * 10) / 10; // Round to nearest 0.1
                 
                 // Ensure target phon is less than reference phon
                 if (dynamicTargetPhon >= this.referencePhon) {
@@ -2945,13 +3007,16 @@
                 
                 // Temporarily use dynamic target phon for filter generation
                 const originalTargetPhon = this.targetPhon;
-                this.targetPhon = dynamicTargetPhon;
+                let newCoeffs;
                 
-                // Generate new filter coefficients
-                const newCoeffs = this.generateSmartLoudnessFilter();
-                
-                // Restore original target phon
-                this.targetPhon = originalTargetPhon;
+                try {
+                    this.targetPhon = dynamicTargetPhon;
+                    // Generate new filter coefficients
+                    newCoeffs = this.generateSmartLoudnessFilter();
+                } finally {
+                    // Always restore original target phon, even if there's an error
+                    this.targetPhon = originalTargetPhon;
+                }
                 
                 if (!newCoeffs) return;
                 
@@ -2966,26 +3031,34 @@
                 const targetGainNode = targetFilter === 'A' ? this.wetGainA : this.wetGainB;
                 const currentGainNode = this.currentFilter === 'A' ? this.wetGainA : this.wetGainB;
                 
-                // Create new buffer with coefficients
-                const filterBuffer = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
-                filterBuffer.copyToChannel(newCoeffs, 0);
-                targetFilterNode.buffer = filterBuffer;
+                // Ensure target gain is at 0 before changing filter
+                const now = this.audioContext.currentTime;
+                targetGainNode.gain.cancelScheduledValues(now);
+                targetGainNode.gain.setValueAtTime(0, now);
                 
-                // Store coefficients
-                if (targetFilter === 'A') {
-                    this.firCoeffsA = newCoeffs;
-                } else {
-                    this.firCoeffsB = newCoeffs;
-                }
-                
-                // Perform crossfade
-                this.performFilterCrossfade(currentGainNode, targetGainNode);
-                
-                // Update current filter
+                // Small delay to ensure gain is at 0
                 setTimeout(() => {
-                    this.currentFilter = targetFilter;
-                    this.isCrossfading = false;
-                }, this.crossfadeTime);
+                    // Create new buffer with coefficients
+                    const filterBuffer = this.audioContext.createBuffer(1, this.numTaps, this.audioContext.sampleRate);
+                    filterBuffer.copyToChannel(newCoeffs, 0);
+                    targetFilterNode.buffer = filterBuffer;
+                    
+                    // Store coefficients
+                    if (targetFilter === 'A') {
+                        this.firCoeffsA = newCoeffs;
+                    } else {
+                        this.firCoeffsB = newCoeffs;
+                    }
+                    
+                    // Perform crossfade
+                    this.performFilterCrossfade(currentGainNode, targetGainNode);
+                    
+                    // Update current filter
+                    setTimeout(() => {
+                        this.currentFilter = targetFilter;
+                        this.isCrossfading = false;
+                    }, this.crossfadeTime);
+                }, 50); // 50ms delay to ensure gain reaches 0
             }
             
             performFilterCrossfade(fromGain, toGain) {
@@ -3014,8 +3087,9 @@
                 if (now - this.listeningSession.lastVolumeUpdate < 1000) return;
                 this.listeningSession.lastVolumeUpdate = now;
                 
-                // Calculate current effective volume
-                const currentVolume = this.targetPhon + this.autoGain + this.normalizationOffset;
+                // Calculate current effective volume using centralized calculation
+                const params = this.calculateVolumeParameters();
+                const currentVolume = params.effectiveLevel;
                 
                 // Add to history
                 this.listeningSession.volumeHistory.push(currentVolume);
