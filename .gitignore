@@ -1,3 +1,6 @@
+# Temporary Development Files
+temporary/
+
 # Audio and Media Files
 *.flac
 *.mp3
